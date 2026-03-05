@@ -1,0 +1,174 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+  background: #f5f5f5;
+  color: #1a1a1a;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#root { height: 100vh; display: flex; flex-direction: column; }
+
+/* Header */
+.app-header {
+  padding: 10px 20px;
+  background: #1a1a1a;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header-actions { display: flex; align-items: center; gap: 8px; }
+.run-error { font-size: 12px; color: #ff6b6b; }
+
+.btn-reset {
+  background: transparent;
+  color: #aaa;
+  border: 1px solid #444;
+  border-radius: 5px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btn-reset:hover { color: #fff; border-color: #888; }
+
+/* Main layout */
+.app-main {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Input Panel */
+.input-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: #fff;
+  border-right: 1px solid #e0e0e0;
+  overflow-y: auto;
+}
+
+.input-panel label {
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #666;
+}
+
+.input-panel textarea {
+  flex: 1;
+  min-height: 200px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  outline: none;
+}
+
+.input-panel textarea:focus { border-color: #1a1a1a; }
+
+.btn-group { display: flex; flex-direction: column; gap: 8px; }
+
+.btn {
+  padding: 9px 14px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  text-align: left;
+}
+
+.btn:hover:not(:disabled) { opacity: 0.85; }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.btn-intake   { background: #e8f4fd; color: #1565c0; }
+.btn-spec     { background: #e8f5e9; color: #2e7d32; }
+.btn-delivery { background: #fce4ec; color: #c62828; }
+.btn-failed   { background: #fff3e0 !important; color: #e65100 !important; }
+
+/* Output Tabs */
+.output-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #fff;
+}
+
+.tab-bar {
+  display: flex;
+  border-bottom: 1px solid #e0e0e0;
+  flex-shrink: 0;
+}
+
+.tab-btn {
+  padding: 10px 16px;
+  border: none;
+  background: none;
+  font-size: 13px;
+  cursor: pointer;
+  color: #666;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.tab-btn.active {
+  color: #1a1a1a;
+  font-weight: 600;
+  border-bottom-color: #1a1a1a;
+}
+
+.tab-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 16px;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.tab-content textarea {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-family: 'Consolas', 'Menlo', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  resize: none;
+  outline: none;
+}
+
+.tab-content textarea:focus { border-color: #1a1a1a; }
+
+.tab-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+.btn-copy {
+  background: #f5f5f5;
+  color: #1a1a1a;
+  padding: 8px 16px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.btn-copy:hover:not(:disabled) { background: #ececec; }
+.btn-copy:disabled { opacity: 0.4; cursor: not-allowed; }

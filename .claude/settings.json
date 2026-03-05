@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmd /c run.bat)",
+      "Bash(cmd /c \"chcp 65001 >nul && where claude 2>&1 && where dotnet 2>&1 && where node 2>&1\")",
+      "Bash(cmd /c \"where claude & where dotnet & where node\")",
+      "Bash(cmd.exe /c run.bat)",
+      "Bash(where.exe claude)",
+      "Bash(where.exe dotnet)",
+      "Bash(where.exe node)",
+      "Bash(where.exe npm)",
+      "Bash(dotnet build)",
+      "Bash(netstat -ano)",
+      "Read(//d/dev/ai-spec-pipeline/**)",
+      "Bash(xargs -r -I{} taskkill //PID {} //F)",
+      "Bash(curl -s -X POST http://localhost:5001/api/run/intake -H \"Content-Type: application/json\" -d '{\"\"inputText\"\":\"\"테스트 입력\"\"}')",
+      "Bash(curl -s -X POST http://localhost:5001/api/run/intake -H \"Content-Type: application/json\" -d '{\"\"inputText\"\":\"\"test input\"\"}')",
+      "Bash(curl -s http://localhost:5001/api/run/f5633d60)"
+    ]
+  }
+}
