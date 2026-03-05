@@ -33,17 +33,24 @@ claude login   # 최초 1회
 
 ## 실행
 
+**Windows**
 ```
-run.bat
+run.win.bat
 ```
+더블클릭 또는 터미널에서 실행. Windows Terminal이 있으면 좌우 분할 패널 한 창으로 표시된다.
 
-더블클릭 또는 터미널에서 실행. 자동으로:
+**macOS**
+```bash
+chmod +x run.mac.sh   # 최초 1회
+./run.mac.sh
+```
+iTerm2가 있으면 탭으로, 없으면 Terminal.app 두 창으로 실행된다.
+
+두 스크립트 모두 자동으로:
 1. claude / dotnet / node 설치 확인
 2. npm install (최초 1회)
 3. 백엔드 시작 — `http://localhost:5001`
 4. 프론트엔드 시작 — `http://localhost:5173`
-
-Windows Terminal이 있으면 좌우 분할 패널 한 창으로 표시된다.
 
 ---
 
@@ -81,7 +88,8 @@ Windows Terminal이 있으면 좌우 분할 패널 한 창으로 표시된다.
 ## 프로젝트 구조
 
 ```
-run.bat / run.ps1               진입점
+run.win.bat / run.win.ps1       진입점 (Windows)
+run.mac.sh                      진입점 (macOS)
 
 prompts/
   base.system.md                공통 지시문
