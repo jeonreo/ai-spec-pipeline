@@ -103,7 +103,6 @@ public class RunController(
         var outPath  = layout.OutputFile(outFile);
         await System.IO.File.WriteAllTextAsync(outPath, restored, ct);
 
-        // verify.sh 실행
         var warning = await RunVerifyScriptAsync(profile, outPath);
 
         var doneJson = JsonSerializer.Serialize(new { done = true, output = restored, warning });
@@ -126,7 +125,11 @@ public class RunController(
 
         try
         {
-            var psi = new ProcessStartInfo("bash", $"\"{scriptPath}\" \"{outputPath}\"")
+            // Windows 경로 → bash용 Unix 경로 변환: D:\foo\bar → /d/foo/bar
+            var unixScript = ToUnixPath(scriptPath);
+            var unixOutput = ToUnixPath(outputPath);
+
+            var psi = new ProcessStartInfo("bash", $"\"{unixScript}\" \"{unixOutput}\"")
             {
                 RedirectStandardOutput = true,
                 RedirectStandardError  = true,
@@ -147,6 +150,14 @@ public class RunController(
         }
 
         return null;
+    }
+
+    // D:\foo\bar → /d/foo/bar  (Linux/Mac은 그대로)
+    private static string ToUnixPath(string path)
+    {
+        if (path.Length >= 2 && path[1] == ':')
+            return "/" + char.ToLowerInvariant(path[0]) + "/" + path[2..].Replace('\\', '/').TrimStart('/');
+        return path.Replace('\\', '/');
     }
 }
 
