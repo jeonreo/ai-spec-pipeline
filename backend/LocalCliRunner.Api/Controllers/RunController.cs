@@ -125,18 +125,25 @@ public class RunController(
 
         try
         {
-            // Windows 경로 → bash용 Unix 경로 변환: D:\foo\bar → /d/foo/bar
-            var unixScript = ToUnixPath(scriptPath);
+            // 스크립트 내용을 stdin으로 전달 — CRLF 변환 문제 원천 차단
+            var scriptContent = (await System.IO.File.ReadAllTextAsync(scriptPath))
+                .Replace("\r\n", "\n").Replace("\r", "\n");
+
+            // Windows 경로 → bash용 Unix 경로: D:\foo\bar → /d/foo/bar
             var unixOutput = ToUnixPath(outputPath);
 
-            var psi = new ProcessStartInfo("bash", $"\"{unixScript}\" \"{unixOutput}\"")
+            var psi = new ProcessStartInfo("bash", $"-s -- \"{unixOutput}\"")
             {
+                RedirectStandardInput  = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError  = true,
                 UseShellExecute        = false,
             };
 
             using var proc = Process.Start(psi)!;
+            await proc.StandardInput.WriteAsync(scriptContent);
+            proc.StandardInput.Close();
+
             var stdout = await proc.StandardOutput.ReadToEndAsync();
             var stderr = await proc.StandardError.ReadToEndAsync();
             await proc.WaitForExitAsync();
