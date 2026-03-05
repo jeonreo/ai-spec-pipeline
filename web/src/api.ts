@@ -7,6 +7,44 @@ export interface JobResult {
   error?: string
 }
 
+export async function streamStage(
+  profile: string,
+  inputText: string,
+  onChunk: (accumulated: string) => void,
+): Promise<string> {
+  const res = await fetch(`/api/run/stream/${profile}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ inputText }),
+  })
+  if (!res.ok) throw new Error(`서버 오류: ${res.status}`)
+
+  const reader = res.body!.getReader()
+  const decoder = new TextDecoder()
+  let sseBuffer = ''
+  let accumulated = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    sseBuffer += decoder.decode(value, { stream: true })
+    const events = sseBuffer.split('\n\n')
+    sseBuffer = events.pop() ?? ''
+
+    for (const event of events) {
+      if (!event.startsWith('data: ')) continue
+      const data = JSON.parse(event.slice(6))
+      if (data.done) return data.output
+      if (data.chunk) {
+        accumulated += data.chunk
+        onChunk(accumulated)
+      }
+    }
+  }
+  return accumulated
+}
+
 export async function fetchPolicy(): Promise<string> {
   const res = await fetch('/api/policy')
   if (!res.ok) throw new Error(`서버 오류: ${res.status}`)

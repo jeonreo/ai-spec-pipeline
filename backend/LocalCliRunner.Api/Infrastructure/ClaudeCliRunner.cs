@@ -54,4 +54,44 @@ public class ClaudeCliRunner(IConfiguration config, ILogger<ClaudeCliRunner> log
 
         return new CliResult(process.ExitCode, stdoutSb.ToString().TrimEnd(), stderrSb.ToString().TrimEnd());
     }
+
+    public async Task StreamAsync(string promptContent, string workspacePath, Func<string, Task> onChunk, CancellationToken ct = default)
+    {
+        var command    = config["Cli:Command"] ?? "claude";
+        var args       = config["Cli:Args"]    ?? "-p --model claude-haiku-4-5-20251001 -";
+        var timeoutSec = int.TryParse(config["Cli:TimeoutSeconds"], out var t) ? t : 300;
+
+        var psi = new ProcessStartInfo
+        {
+            FileName               = command,
+            Arguments              = args,
+            RedirectStandardInput  = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError  = true,
+            UseShellExecute        = false,
+            CreateNoWindow         = true,
+            WorkingDirectory       = workspacePath,
+        };
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(timeoutSec));
+
+        using var process = new Process { StartInfo = psi };
+        process.Start();
+
+        await process.StandardInput.WriteAsync(promptContent);
+        process.StandardInput.Close();
+
+        // char 단위로 읽어 즉시 콜백 (줄바꿈 대기 없음)
+        var buffer = new char[256];
+        while (!process.StandardOutput.EndOfStream && !cts.Token.IsCancellationRequested)
+        {
+            var count = await process.StandardOutput.ReadAsync(buffer, 0, buffer.Length);
+            if (count > 0)
+                await onChunk(new string(buffer, 0, count));
+        }
+
+        await process.WaitForExitAsync(cts.Token);
+        logger.LogInformation("Stream CLI exited with code {ExitCode}", process.ExitCode);
+    }
 }

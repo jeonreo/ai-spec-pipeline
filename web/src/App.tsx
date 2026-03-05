@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { runStage, pollUntilDone, JobResult, fetchPolicy } from './api'
+import { streamStage, fetchPolicy } from './api'
 import InputPanel from './components/InputPanel'
 import OutputTabs from './components/OutputTabs'
 
@@ -61,21 +61,14 @@ export default function App() {
     const startedAt = Date.now()
 
     try {
-      const { jobId } = await runStage(tab, inputText)
-
-      const result: JobResult = await pollUntilDone(jobId, (r) => {
-        // Could show intermediate status updates here
+      const finalOutput = await streamStage(tab, inputText, (accumulated) => {
+        setOutputs(prev => ({ ...prev, [tab]: accumulated }))
       })
 
       const elapsedSec = (Date.now() - startedAt) / 1000
-      if (result.status === 'done') {
-        setOutputs(prev => ({ ...prev, [tab]: result.outputContent ?? '' }))
-        setElapsed(prev => ({ ...prev, [tab]: elapsedSec }))
-        setStageState(tab, 'done')
-      } else {
-        setStageError(tab, result.error ?? '실행 실패')
-        setStageState(tab, 'failed')
-      }
+      setOutputs(prev => ({ ...prev, [tab]: finalOutput }))
+      setElapsed(prev => ({ ...prev, [tab]: elapsedSec }))
+      setStageState(tab, 'done')
     } catch (e) {
       setStageError(tab, e instanceof Error ? e.message : '오류 발생')
       setStageState(tab, 'failed')
