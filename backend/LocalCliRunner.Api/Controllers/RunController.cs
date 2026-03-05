@@ -116,4 +116,81 @@ public class RunController(
     }
 }
 
+[ApiController]
+[Route("api/history")]
+public class HistoryController(WorkspaceManager workspaceManager) : ControllerBase
+{
+    private static readonly string[] StageFiles =
+        ["intake.md", "spec.md", "jira.json", "qa.md", "design.html"];
+
+    // GET /api/history?page=1&pageSize=20&date=2026-03-05
+    [HttpGet]
+    public IActionResult List([FromQuery] int page = 1, [FromQuery] int pageSize = 20, [FromQuery] string? date = null)
+    {
+        // date 필터: "YYYY-MM-DD" → 디렉토리명 접두사 "YYYYMMDD"
+        var datePrefix = date?.Replace("-", "");
+
+        var all = workspaceManager.ListAll()
+            .Where(dir => datePrefix is null || Path.GetFileName(dir).StartsWith(datePrefix))
+            .ToList();
+
+        var total = all.Count;
+        var items = all
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(dir =>
+            {
+                var name      = Path.GetFileName(dir);
+                var inputFile = Path.Combine(dir, "input.txt");
+                var inputText = System.IO.File.Exists(inputFile)
+                    ? System.IO.File.ReadAllText(inputFile)
+                    : "";
+                var outDir    = Path.Combine(dir, "out");
+                var stages    = System.IO.Directory.Exists(outDir)
+                    ? System.IO.Directory.GetFiles(outDir).Select(Path.GetFileName).ToArray()
+                    : [];
+
+                return new
+                {
+                    id           = name,
+                    inputPreview = inputText.Length > 120 ? inputText[..120] + "…" : inputText,
+                    stages,
+                };
+            });
+
+        return Ok(new { total, page, pageSize, items });
+    }
+
+    // GET /api/history/{id}
+    [HttpGet("{id}")]
+    public async Task<IActionResult> Get(string id)
+    {
+        var dir = workspaceManager.ListAll().FirstOrDefault(d => Path.GetFileName(d) == id);
+        if (dir is null) return NotFound();
+
+        var inputFile = Path.Combine(dir, "input.txt");
+        var inputText = System.IO.File.Exists(inputFile)
+            ? await System.IO.File.ReadAllTextAsync(inputFile)
+            : "";
+
+        var outDir  = Path.Combine(dir, "out");
+        var outputs = new Dictionary<string, string>();
+
+        if (System.IO.Directory.Exists(outDir))
+        {
+            foreach (var file in StageFiles)
+            {
+                var path = Path.Combine(outDir, file);
+                if (System.IO.File.Exists(path))
+                {
+                    var stage = Path.GetFileNameWithoutExtension(file);
+                    outputs[stage] = await System.IO.File.ReadAllTextAsync(path);
+                }
+            }
+        }
+
+        return Ok(new { id, inputText, outputs });
+    }
+}
+
 public record RunRequest(string InputText);

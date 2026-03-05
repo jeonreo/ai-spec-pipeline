@@ -45,6 +45,39 @@ export async function streamStage(
   return accumulated
 }
 
+export interface HistoryItem {
+  id: string
+  inputPreview: string
+  stages: string[]
+}
+
+export interface HistoryPage {
+  total: number
+  page: number
+  pageSize: number
+  items: HistoryItem[]
+}
+
+export interface HistoryDetail {
+  id: string
+  inputText: string
+  outputs: Record<string, string>
+}
+
+export async function fetchHistory(page: number, pageSize: number, date?: string): Promise<HistoryPage> {
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
+  if (date) params.set('date', date)
+  const res = await fetch(`/api/history?${params}`)
+  if (!res.ok) throw new Error(`서버 오류: ${res.status}`)
+  return res.json()
+}
+
+export async function fetchHistoryDetail(id: string): Promise<HistoryDetail> {
+  const res = await fetch(`/api/history/${id}`)
+  if (!res.ok) throw new Error(`서버 오류: ${res.status}`)
+  return res.json()
+}
+
 export async function fetchPolicy(): Promise<string> {
   const res = await fetch('/api/policy')
   if (!res.ok) throw new Error(`서버 오류: ${res.status}`)

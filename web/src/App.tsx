@@ -3,9 +3,12 @@ import { flushSync } from 'react-dom'
 import { streamStage, fetchPolicy } from './api'
 import InputPanel from './components/InputPanel'
 import OutputTabs from './components/OutputTabs'
+import HistoryPanel from './components/HistoryPanel'
 
 export type Tab = 'intake' | 'spec' | 'jira' | 'qa' | 'design'
 export type RunState = 'idle' | 'running' | 'done' | 'failed'
+
+const TABS: Tab[] = ['intake', 'spec', 'jira', 'qa', 'design']
 
 const STAGE_INPUT: Record<Tab, (ctx: Context) => string> = {
   intake: (ctx) => ctx.input,
@@ -29,6 +32,7 @@ export default function App() {
   const [elapsed, setElapsed] = useState<Record<Tab, number | null>>({ intake: null, spec: null, jira: null, qa: null, design: null })
   const [policy, setPolicy] = useState<string | null>(null)
   const [policyOpen, setPolicyOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
 
   async function handlePolicyOpen() {
     if (!policy) {
@@ -87,6 +91,20 @@ export default function App() {
     setActiveTab('intake')
   }
 
+  function handleRestore(inputText: string, restoredOutputs: Partial<Record<Tab, string>>) {
+    setInput(inputText)
+    setOutputs(prev => ({ ...prev, ...restoredOutputs }))
+    setRunStates(prev => {
+      const next = { ...prev }
+      for (const tab of Object.keys(restoredOutputs) as Tab[]) next[tab] = 'done'
+      return next
+    })
+    setElapsed({ intake: null, spec: null, jira: null, qa: null, design: null })
+    // 복원된 결과 중 첫 번째 탭으로 이동
+    const firstTab = TABS.find(t => restoredOutputs[t])
+    if (firstTab) setActiveTab(firstTab)
+  }
+
   const anyError = Object.values(errors).find(Boolean)
 
   return (
@@ -95,10 +113,18 @@ export default function App() {
         AI Spec Pipeline
         <div className="header-actions">
           {anyError && <span className="run-error">{anyError}</span>}
+          <button className="btn-policy" onClick={() => setHistoryOpen(true)}>히스토리</button>
           <button className="btn-policy" onClick={handlePolicyOpen}>비즈니스 정책</button>
           <button className="btn-reset" onClick={handleReset}>새 사이클</button>
         </div>
       </header>
+
+      {historyOpen && (
+        <HistoryPanel
+          onRestore={handleRestore}
+          onClose={() => setHistoryOpen(false)}
+        />
+      )}
 
       {policyOpen && (
         <div className="policy-overlay" onClick={() => setPolicyOpen(false)}>
