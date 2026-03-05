@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using LocalCliRunner.Api.Application;
@@ -28,7 +29,6 @@ public class RunController(
     };
 
     // POST /api/run/{profile}
-    // Body: { "inputText": "..." }
     [HttpPost("{profile}")]
     public IActionResult Run(string profile, [FromBody] RunRequest request)
     {
@@ -99,10 +99,14 @@ public class RunController(
 
         var restored = piiTokenizer.Detokenize(fullOutput.ToString().TrimEnd(), piiMap);
 
-        var outFile = OutputFiles.GetValueOrDefault(profile, $"{profile}.md");
-        await System.IO.File.WriteAllTextAsync(layout.OutputFile(outFile), restored, ct);
+        var outFile  = OutputFiles.GetValueOrDefault(profile, $"{profile}.md");
+        var outPath  = layout.OutputFile(outFile);
+        await System.IO.File.WriteAllTextAsync(outPath, restored, ct);
 
-        var doneJson = JsonSerializer.Serialize(new { done = true, output = restored });
+        // verify.sh 실행
+        var warning = await RunVerifyScriptAsync(profile, outPath);
+
+        var doneJson = JsonSerializer.Serialize(new { done = true, output = restored, warning });
         await Response.WriteAsync($"data: {doneJson}\n\n", ct);
         await Response.Body.FlushAsync(ct);
     }
@@ -113,6 +117,36 @@ public class RunController(
     {
         var content = await promptBuilder.ReadPolicyAsync();
         return Ok(new { content });
+    }
+
+    private async Task<string?> RunVerifyScriptAsync(string profile, string outputPath)
+    {
+        var scriptPath = promptBuilder.GetVerifyScriptPath(profile);
+        if (string.IsNullOrEmpty(scriptPath)) return null;
+
+        try
+        {
+            var psi = new ProcessStartInfo("bash", $"\"{scriptPath}\" \"{outputPath}\"")
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+                UseShellExecute        = false,
+            };
+
+            using var proc = Process.Start(psi)!;
+            var stdout = await proc.StandardOutput.ReadToEndAsync();
+            var stderr = await proc.StandardError.ReadToEndAsync();
+            await proc.WaitForExitAsync();
+
+            if (proc.ExitCode != 0)
+                return (stdout + stderr).Trim().TrimEnd('\n') is { Length: > 0 } msg ? msg : "검증 실패";
+        }
+        catch
+        {
+            // bash 없는 환경 등 — 무시
+        }
+
+        return null;
     }
 }
 
@@ -127,7 +161,6 @@ public class HistoryController(WorkspaceManager workspaceManager) : ControllerBa
     [HttpGet]
     public IActionResult List([FromQuery] int page = 1, [FromQuery] int pageSize = 20, [FromQuery] string? date = null)
     {
-        // date 필터: "YYYY-MM-DD" → 디렉토리명 접두사 "YYYYMMDD"
         var datePrefix = date?.Replace("-", "");
 
         var all = workspaceManager.ListAll()

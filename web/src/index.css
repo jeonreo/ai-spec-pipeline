@@ -321,3 +321,19 @@ body {
 .history-pagination button:hover:not(:disabled) { border-color: #999; }
 .history-pagination button:disabled { opacity: 0.3; cursor: not-allowed; }
 .history-pagination span { font-size: 12px; color: #555; }
+
+/* Verify warning */
+.tab-warning {
+  margin-left: 4px;
+  font-size: 11px;
+  color: #e65100;
+}
+.warning-banner {
+  background: #fff3e0;
+  border: 1px solid #ffcc80;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #e65100;
+  flex-shrink: 0;
+}

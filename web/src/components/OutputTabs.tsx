@@ -14,9 +14,10 @@ interface Props {
   onTabChange: (tab: Tab) => void
   onOutputChange: (tab: Tab, value: string) => void
   elapsed: Record<Tab, number | null>
+  warnings: Record<Tab, string>
 }
 
-export default function OutputTabs({ outputs, activeTab, onTabChange, onOutputChange, elapsed }: Props) {
+export default function OutputTabs({ outputs, activeTab, onTabChange, onOutputChange, elapsed, warnings }: Props) {
   const current = activeTab
 
   return (
@@ -27,15 +28,20 @@ export default function OutputTabs({ outputs, activeTab, onTabChange, onOutputCh
             key={t.key}
             className={`tab-btn${activeTab === t.key ? ' active' : ''}`}
             onClick={() => onTabChange(t.key)}
+            title={warnings[t.key] || undefined}
           >
             {t.label}
             {elapsed[t.key] !== null && (
               <span className="tab-elapsed">{elapsed[t.key]!.toFixed(1)}s</span>
             )}
+            {warnings[t.key] && <span className="tab-warning">⚠</span>}
           </button>
         ))}
       </div>
       <div className="tab-content">
+        {warnings[current] && (
+          <div className="warning-banner">⚠ {warnings[current]}</div>
+        )}
         <textarea
           key={current}
           value={outputs[current]}

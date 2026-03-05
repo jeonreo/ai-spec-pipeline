@@ -7,11 +7,16 @@ export interface JobResult {
   error?: string
 }
 
+export interface StreamResult {
+  output: string
+  warning?: string
+}
+
 export async function streamStage(
   profile: string,
   inputText: string,
   onChunk: (accumulated: string) => void,
-): Promise<string> {
+): Promise<StreamResult> {
   const res = await fetch(`/api/run/stream/${profile}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -35,14 +40,14 @@ export async function streamStage(
     for (const event of events) {
       if (!event.startsWith('data: ')) continue
       const data = JSON.parse(event.slice(6))
-      if (data.done) return data.output
+      if (data.done) return { output: data.output, warning: data.warning ?? undefined }
       if (data.chunk) {
         accumulated += data.chunk
         onChunk(accumulated)
       }
     }
   }
-  return accumulated
+  return { output: accumulated }
 }
 
 export interface HistoryItem {

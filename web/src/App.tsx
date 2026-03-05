@@ -28,6 +28,7 @@ export default function App() {
   const [outputs, setOutputs] = useState<Record<Tab, string>>({ intake: '', spec: '', jira: '', qa: '', design: '' })
   const [runStates, setRunStates] = useState<Record<Tab, RunState>>({ intake: 'idle', spec: 'idle', jira: 'idle', qa: 'idle', design: 'idle' })
   const [errors, setErrors]   = useState<Record<Tab, string>>({ intake: '', spec: '', jira: '', qa: '', design: '' })
+  const [warnings, setWarnings] = useState<Record<Tab, string>>({ intake: '', spec: '', jira: '', qa: '', design: '' })
   const [activeTab, setActiveTab] = useState<Tab>('intake')
   const [elapsed, setElapsed] = useState<Record<Tab, number | null>>({ intake: null, spec: null, jira: null, qa: null, design: null })
   const [policy, setPolicy] = useState<string | null>(null)
@@ -60,22 +61,24 @@ export default function App() {
 
     setStageState(tab, 'running')
     setStageError(tab, '')
+    setWarnings(prev => ({ ...prev, [tab]: '' }))
     setElapsed(prev => ({ ...prev, [tab]: null }))
     setActiveTab(tab)
 
     const startedAt = Date.now()
 
     try {
-      const finalOutput = await streamStage(tab, inputText, (accumulated) => {
+      const result = await streamStage(tab, inputText, (accumulated) => {
         flushSync(() => {
           setOutputs(prev => ({ ...prev, [tab]: accumulated }))
         })
       })
 
       const elapsedSec = (Date.now() - startedAt) / 1000
-      setOutputs(prev => ({ ...prev, [tab]: finalOutput }))
+      setOutputs(prev => ({ ...prev, [tab]: result.output }))
       setElapsed(prev => ({ ...prev, [tab]: elapsedSec }))
       setStageState(tab, 'done')
+      if (result.warning) setWarnings(prev => ({ ...prev, [tab]: result.warning! }))
     } catch (e) {
       setStageError(tab, e instanceof Error ? e.message : '오류 발생')
       setStageState(tab, 'failed')
@@ -87,6 +90,7 @@ export default function App() {
     setOutputs({ intake: '', spec: '', jira: '', qa: '', design: '' })
     setRunStates({ intake: 'idle', spec: 'idle', jira: 'idle', qa: 'idle', design: 'idle' })
     setErrors({ intake: '', spec: '', jira: '', qa: '', design: '' })
+    setWarnings({ intake: '', spec: '', jira: '', qa: '', design: '' })
     setElapsed({ intake: null, spec: null, jira: null, qa: null, design: null })
     setActiveTab('intake')
   }
@@ -100,7 +104,6 @@ export default function App() {
       return next
     })
     setElapsed({ intake: null, spec: null, jira: null, qa: null, design: null })
-    // 복원된 결과 중 첫 번째 탭으로 이동
     const firstTab = TABS.find(t => restoredOutputs[t])
     if (firstTab) setActiveTab(firstTab)
   }
@@ -137,6 +140,7 @@ export default function App() {
           </div>
         </div>
       )}
+
       <main className="app-main">
         <InputPanel
           input={input}
@@ -150,6 +154,7 @@ export default function App() {
           onTabChange={setActiveTab}
           onOutputChange={(tab, val) => setOutputs(prev => ({ ...prev, [tab]: val }))}
           elapsed={elapsed}
+          warnings={warnings}
         />
       </main>
     </div>
