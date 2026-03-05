@@ -15,12 +15,13 @@ export interface StreamResult {
 export async function streamStage(
   profile: string,
   inputText: string,
+  allOutputs: Record<string, string>,
   onChunk: (accumulated: string) => void,
 ): Promise<StreamResult> {
   const res = await fetch(`/api/run/stream/${profile}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ inputText }),
+    body: JSON.stringify({ inputText, allOutputs }),
   })
   if (!res.ok) throw new Error(`서버 오류: ${res.status}`)
 

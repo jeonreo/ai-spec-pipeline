@@ -68,7 +68,8 @@ export default function App() {
     const startedAt = Date.now()
 
     try {
-      const result = await streamStage(tab, inputText, (accumulated) => {
+      // 현재 모든 출력물을 함께 전송 → 워크스페이스에 세션 전체 저장
+      const result = await streamStage(tab, inputText, outputs, (accumulated) => {
         flushSync(() => {
           setOutputs(prev => ({ ...prev, [tab]: accumulated }))
         })

@@ -87,6 +87,16 @@ public class RunController(
         await System.IO.File.WriteAllTextAsync(layout.InputFile, request.InputText, ct);
         await System.IO.File.WriteAllTextAsync(layout.PromptFile, prompt, ct);
 
+        // 현재 세션의 다른 스테이지 출력물도 함께 저장 → 히스토리에서 전체 세션 복원 가능
+        if (request.AllOutputs is not null)
+        {
+            foreach (var (stage, content) in request.AllOutputs)
+            {
+                if (OutputFiles.TryGetValue(stage, out var outFileName) && !string.IsNullOrEmpty(content))
+                    await System.IO.File.WriteAllTextAsync(layout.OutputFile(outFileName), content, ct);
+            }
+        }
+
         var fullOutput = new StringBuilder();
 
         await cliRunner.StreamAsync(prompt, workspacePath, async chunk =>
@@ -99,11 +109,10 @@ public class RunController(
 
         var restored = piiTokenizer.Detokenize(fullOutput.ToString().TrimEnd(), piiMap);
 
-        var outFile  = OutputFiles.GetValueOrDefault(profile, $"{profile}.md");
-        var outPath  = layout.OutputFile(outFile);
-        await System.IO.File.WriteAllTextAsync(outPath, restored, ct);
+        var outFile = OutputFiles.GetValueOrDefault(profile, $"{profile}.md");
+        await System.IO.File.WriteAllTextAsync(layout.OutputFile(outFile), restored, ct);
 
-        var warning = await RunVerifyScriptAsync(profile, outPath);
+        var warning = await RunVerifyScriptAsync(profile, restored);
 
         var doneJson = JsonSerializer.Serialize(new { done = true, output = restored, warning });
         await Response.WriteAsync($"data: {doneJson}\n\n", ct);
@@ -118,27 +127,25 @@ public class RunController(
         return Ok(new { content });
     }
 
-    private async Task<string?> RunVerifyScriptAsync(string profile, string outputPath)
+    private async Task<string?> RunVerifyScriptAsync(string profile, string outputContent)
     {
         var scriptPath = promptBuilder.GetVerifyScriptPath(profile);
         if (string.IsNullOrEmpty(scriptPath)) return null;
 
         try
         {
-            // 스크립트 내용을 stdin으로 전달 — CRLF 변환 문제 원천 차단
             var scriptContent = (await System.IO.File.ReadAllTextAsync(scriptPath))
                 .Replace("\r\n", "\n").Replace("\r", "\n");
 
-            // Windows 경로 → bash용 Unix 경로: D:\foo\bar → /d/foo/bar
-            var unixOutput = ToUnixPath(outputPath);
-
-            var psi = new ProcessStartInfo("bash", $"-s -- \"{unixOutput}\"")
+            var psi = new ProcessStartInfo("bash", "-s")
             {
                 RedirectStandardInput  = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError  = true,
                 UseShellExecute        = false,
             };
+            // 파일 경로 없이 내용을 env var로 전달 — OS 경로 문제 완전 제거
+            psi.Environment["OUTPUT_CONTENT"] = outputContent;
 
             using var proc = Process.Start(psi)!;
             await proc.StandardInput.WriteAsync(scriptContent);
@@ -157,14 +164,6 @@ public class RunController(
         }
 
         return null;
-    }
-
-    // D:\foo\bar → /d/foo/bar  (Linux/Mac은 그대로)
-    private static string ToUnixPath(string path)
-    {
-        if (path.Length >= 2 && path[1] == ':')
-            return "/" + char.ToLowerInvariant(path[0]) + "/" + path[2..].Replace('\\', '/').TrimStart('/');
-        return path.Replace('\\', '/');
     }
 }
 
@@ -244,4 +243,4 @@ public class HistoryController(WorkspaceManager workspaceManager) : ControllerBa
     }
 }
 
-public record RunRequest(string InputText);
+public record RunRequest(string InputText, Dictionary<string, string>? AllOutputs = null);
