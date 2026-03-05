@@ -84,8 +84,8 @@ public class RunController(
 
         var workspacePath = workspaceManager.Create($"s-{Guid.NewGuid().ToString("N")[..6]}");
         var layout = new WorkspaceLayout(workspacePath);
-        await File.WriteAllTextAsync(layout.InputFile, request.InputText, ct);
-        await File.WriteAllTextAsync(layout.PromptFile, prompt, ct);
+        await System.IO.File.WriteAllTextAsync(layout.InputFile, request.InputText, ct);
+        await System.IO.File.WriteAllTextAsync(layout.PromptFile, prompt, ct);
 
         var fullOutput = new StringBuilder();
 
@@ -100,7 +100,7 @@ public class RunController(
         var restored = piiTokenizer.Detokenize(fullOutput.ToString().TrimEnd(), piiMap);
 
         var outFile = OutputFiles.GetValueOrDefault(profile, $"{profile}.md");
-        await File.WriteAllTextAsync(layout.OutputFile(outFile), restored, ct);
+        await System.IO.File.WriteAllTextAsync(layout.OutputFile(outFile), restored, ct);
 
         var doneJson = JsonSerializer.Serialize(new { done = true, output = restored });
         await Response.WriteAsync($"data: {doneJson}\n\n", ct);
