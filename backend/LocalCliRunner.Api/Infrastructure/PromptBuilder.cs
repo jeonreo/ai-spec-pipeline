@@ -44,6 +44,12 @@ public class PromptBuilder(IConfiguration config)
         return File.Exists(path) ? path : string.Empty;
     }
 
+    public string GetStyleInjectPath(string profile)
+    {
+        var path = Path.Combine(_promptsDir, "skills", profile, "assets", "style.css");
+        return File.Exists(path) ? path : string.Empty;
+    }
+
     private Task<string> ReadSkillAsync(string profile, string filename) =>
         ReadPromptAsync(Path.Combine("skills", profile, filename));
 

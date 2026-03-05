@@ -10,12 +10,23 @@ export type RunState = 'idle' | 'running' | 'done' | 'failed'
 
 const TABS: Tab[] = ['intake', 'spec', 'jira', 'qa', 'design']
 
+function extractSpecSections(spec: string, headings: string[]): string {
+  const lines = spec.split('\n')
+  const result: string[] = []
+  let include = false
+  for (const line of lines) {
+    if (line.startsWith('## ')) include = headings.some(h => line.startsWith(h))
+    if (include) result.push(line)
+  }
+  return result.join('\n')
+}
+
 const STAGE_INPUT: Record<Tab, (ctx: Context) => string> = {
   intake: (ctx) => ctx.input,
   spec:   (ctx) => ctx.outputs.intake,
   jira:   (ctx) => ctx.outputs.spec,
   qa:     (ctx) => ctx.outputs.spec,
-  design: (ctx) => ctx.outputs.spec,
+  design: (ctx) => extractSpecSections(ctx.outputs.spec, ['## 기능 요약', '## UI 구성']),
 }
 
 interface Context {
@@ -86,6 +97,10 @@ export default function App() {
     }
   }
 
+  function handleRunParallel() {
+    Promise.all((['jira', 'qa', 'design'] as Tab[]).map(tab => handleRun(tab)))
+  }
+
   function handleReset() {
     setInput('')
     setOutputs({ intake: '', spec: '', jira: '', qa: '', design: '' })
@@ -147,6 +162,7 @@ export default function App() {
           input={input}
           onInputChange={setInput}
           onRun={handleRun}
+          onRunParallel={handleRunParallel}
           runStates={runStates}
         />
         <OutputTabs

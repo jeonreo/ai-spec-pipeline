@@ -109,6 +109,14 @@ public class RunController(
 
         var restored = piiTokenizer.Detokenize(fullOutput.ToString().TrimEnd(), piiMap);
 
+        // <!--STYLE--> 마커를 실제 CSS로 교체 (design 전용)
+        var stylePath = promptBuilder.GetStyleInjectPath(profile);
+        if (!string.IsNullOrEmpty(stylePath))
+        {
+            var css = await System.IO.File.ReadAllTextAsync(stylePath, ct);
+            restored = restored.Replace("<!--STYLE-->", $"<style>\n{css}\n</style>", StringComparison.Ordinal);
+        }
+
         var outFile = OutputFiles.GetValueOrDefault(profile, $"{profile}.md");
         await System.IO.File.WriteAllTextAsync(layout.OutputFile(outFile), restored, ct);
 

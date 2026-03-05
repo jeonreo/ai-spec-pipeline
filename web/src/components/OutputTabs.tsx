@@ -23,20 +23,43 @@ export default function OutputTabs({ outputs, activeTab, onTabChange, onOutputCh
   return (
     <div className="output-panel">
       <div className="tab-bar">
-        {TABS.map(t => (
+        <div className="tab-bar-tabs">
+          {TABS.map(t => (
+            <button
+              key={t.key}
+              className={`tab-btn${activeTab === t.key ? ' active' : ''}`}
+              onClick={() => onTabChange(t.key)}
+              title={warnings[t.key] || undefined}
+            >
+              {t.label}
+              {elapsed[t.key] !== null && (
+                <span className="tab-elapsed">{elapsed[t.key]!.toFixed(1)}s</span>
+              )}
+              {warnings[t.key] && <span className="tab-warning">⚠</span>}
+            </button>
+          ))}
+        </div>
+        <div className="tab-bar-actions">
+          {current === 'design' && (
+            <button
+              className="btn-tab-action"
+              onClick={() => {
+                const blob = new Blob([outputs[current]], { type: 'text/html' })
+                window.open(URL.createObjectURL(blob))
+              }}
+              disabled={!outputs[current]}
+            >
+              미리보기
+            </button>
+          )}
           <button
-            key={t.key}
-            className={`tab-btn${activeTab === t.key ? ' active' : ''}`}
-            onClick={() => onTabChange(t.key)}
-            title={warnings[t.key] || undefined}
+            className="btn-tab-action"
+            onClick={() => navigator.clipboard.writeText(outputs[current])}
+            disabled={!outputs[current]}
           >
-            {t.label}
-            {elapsed[t.key] !== null && (
-              <span className="tab-elapsed">{elapsed[t.key]!.toFixed(1)}s</span>
-            )}
-            {warnings[t.key] && <span className="tab-warning">⚠</span>}
+            복사
           </button>
-        ))}
+        </div>
       </div>
       <div className="tab-content">
         {warnings[current] && (
@@ -48,27 +71,6 @@ export default function OutputTabs({ outputs, activeTab, onTabChange, onOutputCh
           onChange={(e) => onOutputChange(current, e.target.value)}
           placeholder={`${TABS.find(t => t.key === current)?.label} 결과가 여기에 표시됩니다.`}
         />
-        <div className="tab-actions">
-          <button
-            className="btn-copy"
-            onClick={() => navigator.clipboard.writeText(outputs[current])}
-            disabled={!outputs[current]}
-          >
-            복사
-          </button>
-          {current === 'design' && (
-            <button
-              className="btn-copy"
-              onClick={() => {
-                const blob = new Blob([outputs[current]], { type: 'text/html' })
-                window.open(URL.createObjectURL(blob))
-              }}
-              disabled={!outputs[current]}
-            >
-              미리보기
-            </button>
-          )}
-        </div>
       </div>
     </div>
   )
