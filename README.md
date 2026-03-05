@@ -1,6 +1,19 @@
+## Who should use this
+PM
+기획자
+개발자
+디자이너
+
+초기 기능 정의 단계에서 빠르게 스펙 초안을 만들고 싶은 팀
+
 # AI Spec Pipeline
 
-요구사항 텍스트를 입력하면 로컬 Claude CLI가 자동으로 스펙 문서와 디자인 초안을 생성한다.
+AI Spec Pipeline은 요구사항 텍스트를 입력하면
+스펙 문서, Jira 티켓, QA 문서, UI 디자인 초안을 자동 생성하는
+AI Native 개발 워크플로우 도구입니다.
+
+기획 → 개발 → QA → 디자인 초기 단계를 자동화하여
+초기 문서 작성 시간을 줄이고 스펙 정합성을 유지하는 것이 목적입니다.
 
 ```
 요구사항 입력
@@ -10,6 +23,100 @@
   → qa.md        (QA 문서)
   → design.html  (UI 디자인 초안 — CLOver Design System 기반)
 ```
+
+## 예시
+
+**Input**
+```
+사용자가 이메일로 로그인할 수 있어야 한다.
+비밀번호 재설정 기능 필요.
+```
+
+**Output**
+
+<details>
+<summary>intake.md</summary>
+
+```markdown
+## 문제 정의
+사용자 인증 관련 핵심 기능 2가지가 필요하다.
+1. 이메일 기반 로그인
+2. 비밀번호 재설정
+
+## 목적
+- 사용자가 계정에 안전하게 접근할 수 있어야 한다.
+- 비밀번호 분실 시 자력으로 재설정할 수 있어야 한다.
+...
+```
+</details>
+
+<details>
+<summary>spec.md</summary>
+
+```markdown
+## 기능 스펙
+
+### F-01 이메일 로그인
+- 입력: 이메일, 비밀번호
+- 성공 시 JWT 발급 후 대시보드로 이동
+- 실패 시 "이메일 또는 비밀번호가 올바르지 않습니다" 메시지 표시
+- 5회 연속 실패 시 계정 잠금 (30분)
+
+### F-02 비밀번호 재설정
+- 이메일 입력 → 재설정 링크 발송 (유효시간 1시간)
+- 링크 클릭 → 새 비밀번호 입력 → 확인
+...
+```
+</details>
+
+<details>
+<summary>jira.json</summary>
+
+```json
+[
+  {
+    "issueType": "Story",
+    "summary": "[F-01] 이메일 로그인",
+    "description": "사용자가 이메일과 비밀번호로 로그인할 수 있다.",
+    "storyPoints": 3,
+    "subtasks": ["로그인 API 구현", "JWT 발급 로직", "5회 실패 잠금 처리"]
+  },
+  {
+    "issueType": "Story",
+    "summary": "[F-02] 비밀번호 재설정",
+    "description": "비밀번호 분실 시 이메일로 재설정 링크를 받아 변경할 수 있다.",
+    "storyPoints": 2,
+    "subtasks": ["재설정 메일 발송 API", "토큰 유효성 검증", "비밀번호 변경 처리"]
+  }
+]
+```
+</details>
+
+<details>
+<summary>qa.md</summary>
+
+```markdown
+## 테스트 케이스
+
+### TC-01 정상 로그인
+- 조건: 유효한 이메일 + 비밀번호
+- 기대: 대시보드 이동, JWT 쿠키 설정
+
+### TC-02 잘못된 비밀번호
+- 조건: 올바른 이메일 + 잘못된 비밀번호
+- 기대: 오류 메시지 표시, 로그인 실패 횟수 +1
+...
+```
+</details>
+
+<details>
+<summary>design.html</summary>
+
+CLOver Design System 토큰 기반 관리자 UI 초안 (SNB + 헤더 + 카드 + 테이블).
+탭의 **미리보기** 버튼으로 브라우저에서 바로 확인 가능.
+</details>
+
+---
 
 ## 전제 조건
 
@@ -24,7 +131,7 @@ Claude CLI 설치 후 로그인 필요:
 claude login
 ```
 
-## 시작하기
+## Quick Start
 
 ```
 run.bat
