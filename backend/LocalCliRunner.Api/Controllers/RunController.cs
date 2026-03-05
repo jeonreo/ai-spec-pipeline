@@ -109,6 +109,10 @@ public class RunController(
 
         var restored = piiTokenizer.Detokenize(fullOutput.ToString().TrimEnd(), piiMap);
 
+        // jira: 마크다운 코드블록 마커 제거 (```json ... ```)
+        if (profile == "jira")
+            restored = StripCodeFence(restored);
+
         // <!--STYLE--> 마커를 실제 CSS로 교체 (design 전용)
         var stylePath = promptBuilder.GetStyleInjectPath(profile);
         if (!string.IsNullOrEmpty(stylePath))
@@ -133,6 +137,19 @@ public class RunController(
     {
         var content = await promptBuilder.ReadPolicyAsync();
         return Ok(new { content });
+    }
+
+    private static string StripCodeFence(string text)
+    {
+        var s = text.TrimStart();
+        if (s.StartsWith("```"))
+        {
+            var firstNewline = s.IndexOf('\n');
+            if (firstNewline >= 0) s = s[(firstNewline + 1)..];
+        }
+        if (s.TrimEnd().EndsWith("```"))
+            s = s[..s.TrimEnd().LastIndexOf("```")];
+        return s.Trim();
     }
 
     private async Task<string?> RunVerifyScriptAsync(string profile, string outputContent)

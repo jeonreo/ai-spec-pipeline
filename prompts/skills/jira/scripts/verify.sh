@@ -2,9 +2,9 @@
 FAIL=0
 MISSING=""
 
-for key in '"summary"' '"description"' '"acceptance_criteria"'; do
-  printf '%s' "$OUTPUT_CONTENT" | grep -qF "$key" || { MISSING="$MISSING $key"; FAIL=1; }
-done
+[[ "$OUTPUT_CONTENT" == *'"summary"'*             ]] || { MISSING="$MISSING \"summary\"";             FAIL=1; }
+[[ "$OUTPUT_CONTENT" == *'"description"'*         ]] || { MISSING="$MISSING \"description\"";         FAIL=1; }
+[[ "$OUTPUT_CONTENT" == *'"acceptance_criteria"'* ]] || { MISSING="$MISSING \"acceptance_criteria\""; FAIL=1; }
 
 [ $FAIL -ne 0 ] && echo "누락 필드:$MISSING"
 exit $FAIL
