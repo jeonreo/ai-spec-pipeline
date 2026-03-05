@@ -5,6 +5,7 @@ const STAGES: { tab: Tab; label: string; file: string; cls: string }[] = [
   { tab: 'spec',   label: 'Spec',   file: 'spec.md',    cls: 'btn-spec'     },
   { tab: 'jira',   label: 'Jira',   file: 'jira.json',  cls: 'btn-delivery' },
   { tab: 'qa',     label: 'QA',     file: 'qa.md',      cls: 'btn-delivery' },
+  { tab: 'design', label: 'Design', file: 'design.html', cls: 'btn-design'   },
 ]
 
 interface Props {

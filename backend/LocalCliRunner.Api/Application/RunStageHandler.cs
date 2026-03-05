@@ -18,7 +18,9 @@ public class RunStageHandler(
         ["spec"]     = "spec.md",
         ["jira"]     = "jira.json",
         ["qa"]       = "qa.md",
+        ["design"]   = "design.html",
     };
+
 
     public RunStageResult Enqueue(RunStageCommand command)
     {

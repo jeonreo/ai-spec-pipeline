@@ -12,7 +12,7 @@ public class ClaudeCliRunner(IConfiguration config, ILogger<ClaudeCliRunner> log
     public async Task<CliResult> RunAsync(string promptContent, string workspacePath, CancellationToken ct = default)
     {
         var command    = config["Cli:Command"] ?? "claude";
-        var args       = config["Cli:Args"]    ?? "-p -";
+        var args       = config["Cli:Args"]    ?? "-p --model claude-haiku-4-5-20251001 -";
         var timeoutSec = int.TryParse(config["Cli:TimeoutSeconds"], out var t) ? t : 120;
 
         var psi = new ProcessStartInfo

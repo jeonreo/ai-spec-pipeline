@@ -11,6 +11,7 @@ public class PromptBuilder(IConfiguration config)
         ["spec"]   = "서론 없이 spec 문서만 바로 출력하라.",
         ["jira"]   = "서론 없이 JSON만 바로 출력하라. 마크다운 코드블록 없이 순수 JSON만.",
         ["qa"]     = "서론 없이 QA 문서만 바로 출력하라.",
+        ["design"] = "서론 없이 완전한 HTML 파일만 바로 출력하라. 마크다운 코드블록 없이 <!DOCTYPE html>부터 시작하는 순수 HTML만.",
     };
 
     public async Task<string> BuildAsync(string profile, string inputText)

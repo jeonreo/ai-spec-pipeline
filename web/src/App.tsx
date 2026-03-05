@@ -3,7 +3,7 @@ import { runStage, pollUntilDone, JobResult } from './api'
 import InputPanel from './components/InputPanel'
 import OutputTabs from './components/OutputTabs'
 
-export type Tab = 'intake' | 'spec' | 'jira' | 'qa'
+export type Tab = 'intake' | 'spec' | 'jira' | 'qa' | 'design'
 export type RunState = 'idle' | 'running' | 'done' | 'failed'
 
 const STAGE_INPUT: Record<Tab, (ctx: Context) => string> = {
@@ -11,6 +11,7 @@ const STAGE_INPUT: Record<Tab, (ctx: Context) => string> = {
   spec:   (ctx) => ctx.outputs.intake,
   jira:   (ctx) => ctx.outputs.spec,
   qa:     (ctx) => ctx.outputs.spec,
+  design: (ctx) => ctx.outputs.spec,
 }
 
 interface Context {
@@ -20,10 +21,11 @@ interface Context {
 
 export default function App() {
   const [input, setInput]     = useState('')
-  const [outputs, setOutputs] = useState<Record<Tab, string>>({ intake: '', spec: '', jira: '', qa: '' })
-  const [runStates, setRunStates] = useState<Record<Tab, RunState>>({ intake: 'idle', spec: 'idle', jira: 'idle', qa: 'idle' })
-  const [errors, setErrors]   = useState<Record<Tab, string>>({ intake: '', spec: '', jira: '', qa: '' })
+  const [outputs, setOutputs] = useState<Record<Tab, string>>({ intake: '', spec: '', jira: '', qa: '', design: '' })
+  const [runStates, setRunStates] = useState<Record<Tab, RunState>>({ intake: 'idle', spec: 'idle', jira: 'idle', qa: 'idle', design: 'idle' })
+  const [errors, setErrors]   = useState<Record<Tab, string>>({ intake: '', spec: '', jira: '', qa: '', design: '' })
   const [activeTab, setActiveTab] = useState<Tab>('intake')
+  const [elapsed, setElapsed] = useState<Record<Tab, number | null>>({ intake: null, spec: null, jira: null, qa: null, design: null })
 
   function setStageState(tab: Tab, state: RunState) {
     setRunStates(prev => ({ ...prev, [tab]: state }))
@@ -43,7 +45,10 @@ export default function App() {
 
     setStageState(tab, 'running')
     setStageError(tab, '')
+    setElapsed(prev => ({ ...prev, [tab]: null }))
     setActiveTab(tab)
+
+    const startedAt = Date.now()
 
     try {
       const { jobId } = await runStage(tab, inputText)
@@ -52,8 +57,10 @@ export default function App() {
         // Could show intermediate status updates here
       })
 
+      const elapsedSec = (Date.now() - startedAt) / 1000
       if (result.status === 'done') {
         setOutputs(prev => ({ ...prev, [tab]: result.outputContent ?? '' }))
+        setElapsed(prev => ({ ...prev, [tab]: elapsedSec }))
         setStageState(tab, 'done')
       } else {
         setStageError(tab, result.error ?? '실행 실패')
@@ -67,9 +74,10 @@ export default function App() {
 
   function handleReset() {
     setInput('')
-    setOutputs({ intake: '', spec: '', jira: '', qa: '' })
-    setRunStates({ intake: 'idle', spec: 'idle', jira: 'idle', qa: 'idle' })
-    setErrors({ intake: '', spec: '', jira: '', qa: '' })
+    setOutputs({ intake: '', spec: '', jira: '', qa: '', design: '' })
+    setRunStates({ intake: 'idle', spec: 'idle', jira: 'idle', qa: 'idle', design: 'idle' })
+    setErrors({ intake: '', spec: '', jira: '', qa: '', design: '' })
+    setElapsed({ intake: null, spec: null, jira: null, qa: null, design: null })
     setActiveTab('intake')
   }
 
@@ -96,6 +104,7 @@ export default function App() {
           activeTab={activeTab}
           onTabChange={setActiveTab}
           onOutputChange={(tab, val) => setOutputs(prev => ({ ...prev, [tab]: val }))}
+          elapsed={elapsed}
         />
       </main>
     </div>

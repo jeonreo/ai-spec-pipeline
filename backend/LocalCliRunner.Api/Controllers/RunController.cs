@@ -10,7 +10,7 @@ namespace LocalCliRunner.Api.Controllers;
 public class RunController(RunStageHandler handler, JobRegistry registry) : ControllerBase
 {
     private static readonly HashSet<string> ValidProfiles =
-        ["intake", "spec", "jira", "qa"];
+        ["intake", "spec", "jira", "qa", "design"];
 
     // POST /api/run/{profile}
     // Body: { "inputText": "..." }

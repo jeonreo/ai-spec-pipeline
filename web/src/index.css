@@ -102,6 +102,7 @@ body {
 .btn-intake   { background: #e8f4fd; color: #1565c0; }
 .btn-spec     { background: #e8f5e9; color: #2e7d32; }
 .btn-delivery { background: #fce4ec; color: #c62828; }
+.btn-design   { background: #ede7f6; color: #4527a0; }
 .btn-failed   { background: #fff3e0 !important; color: #e65100 !important; }
 
 /* Output Tabs */
@@ -127,6 +128,14 @@ body {
   color: #666;
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
+}
+
+.tab-elapsed {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 400;
+  color: #7d7d7d;
+  opacity: 0.8;
 }
 
 .tab-btn.active {

@@ -1,10 +1,11 @@
 import { Tab } from '../App'
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: 'intake', label: 'intake.md'  },
-  { key: 'spec',   label: 'spec.md'   },
-  { key: 'jira',   label: 'jira.json' },
-  { key: 'qa',     label: 'qa.md'     },
+  { key: 'intake', label: 'intake.md'   },
+  { key: 'spec',   label: 'spec.md'    },
+  { key: 'jira',   label: 'jira.json'  },
+  { key: 'qa',     label: 'qa.md'      },
+  { key: 'design', label: 'design.html' },
 ]
 
 interface Props {
@@ -12,9 +13,10 @@ interface Props {
   activeTab: Tab
   onTabChange: (tab: Tab) => void
   onOutputChange: (tab: Tab, value: string) => void
+  elapsed: Record<Tab, number | null>
 }
 
-export default function OutputTabs({ outputs, activeTab, onTabChange, onOutputChange }: Props) {
+export default function OutputTabs({ outputs, activeTab, onTabChange, onOutputChange, elapsed }: Props) {
   const current = activeTab
 
   return (
@@ -27,6 +29,9 @@ export default function OutputTabs({ outputs, activeTab, onTabChange, onOutputCh
             onClick={() => onTabChange(t.key)}
           >
             {t.label}
+            {elapsed[t.key] !== null && (
+              <span className="tab-elapsed">{elapsed[t.key]!.toFixed(1)}s</span>
+            )}
           </button>
         ))}
       </div>
@@ -45,6 +50,18 @@ export default function OutputTabs({ outputs, activeTab, onTabChange, onOutputCh
           >
             복사
           </button>
+          {current === 'design' && (
+            <button
+              className="btn-copy"
+              onClick={() => {
+                const blob = new Blob([outputs[current]], { type: 'text/html' })
+                window.open(URL.createObjectURL(blob))
+              }}
+              disabled={!outputs[current]}
+            >
+              미리보기
+            </button>
+          )}
         </div>
       </div>
     </div>
