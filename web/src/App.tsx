@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { flushSync } from 'react-dom'
 import { streamStage, fetchPolicy } from './api'
 import InputPanel from './components/InputPanel'
 import OutputTabs from './components/OutputTabs'
@@ -62,7 +63,9 @@ export default function App() {
 
     try {
       const finalOutput = await streamStage(tab, inputText, (accumulated) => {
-        setOutputs(prev => ({ ...prev, [tab]: accumulated }))
+        flushSync(() => {
+          setOutputs(prev => ({ ...prev, [tab]: accumulated }))
+        })
       })
 
       const elapsedSec = (Date.now() - startedAt) / 1000
