@@ -7,7 +7,7 @@ namespace LocalCliRunner.Api.Controllers;
 
 [ApiController]
 [Route("api/run")]
-public class RunController(RunStageHandler handler, JobRegistry registry) : ControllerBase
+public class RunController(RunStageHandler handler, JobRegistry registry, PromptBuilder promptBuilder) : ControllerBase
 {
     private static readonly HashSet<string> ValidProfiles =
         ["intake", "spec", "jira", "qa", "design"];
@@ -48,6 +48,14 @@ public class RunController(RunStageHandler handler, JobRegistry registry) : Cont
             preview       = job.OutputContent?[..Math.Min(2000, job.OutputContent.Length)],
             error         = job.Error,
         });
+    }
+
+    // GET /api/policy
+    [HttpGet("/api/policy")]
+    public async Task<IActionResult> GetPolicy()
+    {
+        var content = await promptBuilder.ReadPolicyAsync();
+        return Ok(new { content });
     }
 }
 

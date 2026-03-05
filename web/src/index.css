@@ -40,6 +40,51 @@ body {
 
 .btn-reset:hover { color: #fff; border-color: #888; }
 
+.btn-policy {
+  background: transparent;
+  color: #aaa;
+  border: 1px solid #444;
+  border-radius: 5px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.btn-policy:hover { color: #fff; border-color: #888; }
+
+/* Policy Modal */
+.policy-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+}
+.policy-modal {
+  background: #fff;
+  border-radius: 10px;
+  width: 620px; max-width: 90vw;
+  max-height: 80vh;
+  display: flex; flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+}
+.policy-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 14px; font-weight: 600; color: #202020;
+}
+.policy-modal-header button {
+  background: none; border: none; font-size: 16px;
+  color: #7d7d7d; cursor: pointer; line-height: 1;
+}
+.policy-modal-header button:hover { color: #202020; }
+.policy-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  font-size: 13px; line-height: 1.7; color: #202020;
+  white-space: pre-wrap; font-family: inherit;
+  margin: 0;
+}
+
 /* Main layout */
 .app-main {
   display: grid;

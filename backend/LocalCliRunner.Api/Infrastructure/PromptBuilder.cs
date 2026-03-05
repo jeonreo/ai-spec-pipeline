@@ -17,11 +17,14 @@ public class PromptBuilder(IConfiguration config)
     public async Task<string> BuildAsync(string profile, string inputText)
     {
         var baseMd    = await ReadPromptAsync("base.system.md");
+        var policyMd  = await ReadPromptAsync("policy.md");
         var stageMd   = await ReadPromptAsync($"{profile}.prompt.md");
         var header    = TaskHeaders.GetValueOrDefault(profile, $"# 작업\n파일: {profile}");
 
-        return $"{header}\n\n---\n\n{baseMd}\n\n---\n\n{stageMd}\n\n---\n\n## 입력\n\n{inputText}";
+        return $"{header}\n\n---\n\n{baseMd}\n\n---\n\n{policyMd}\n\n---\n\n{stageMd}\n\n---\n\n## 입력\n\n{inputText}";
     }
+
+    public Task<string> ReadPolicyAsync() => ReadPromptAsync("policy.md");
 
     private Task<string> ReadPromptAsync(string filename) =>
         File.ReadAllTextAsync(Path.Combine(_promptsDir, filename));

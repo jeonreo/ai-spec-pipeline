@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { runStage, pollUntilDone, JobResult } from './api'
+import { runStage, pollUntilDone, JobResult, fetchPolicy } from './api'
 import InputPanel from './components/InputPanel'
 import OutputTabs from './components/OutputTabs'
 
@@ -26,6 +26,16 @@ export default function App() {
   const [errors, setErrors]   = useState<Record<Tab, string>>({ intake: '', spec: '', jira: '', qa: '', design: '' })
   const [activeTab, setActiveTab] = useState<Tab>('intake')
   const [elapsed, setElapsed] = useState<Record<Tab, number | null>>({ intake: null, spec: null, jira: null, qa: null, design: null })
+  const [policy, setPolicy] = useState<string | null>(null)
+  const [policyOpen, setPolicyOpen] = useState(false)
+
+  async function handlePolicyOpen() {
+    if (!policy) {
+      const content = await fetchPolicy()
+      setPolicy(content)
+    }
+    setPolicyOpen(true)
+  }
 
   function setStageState(tab: Tab, state: RunState) {
     setRunStates(prev => ({ ...prev, [tab]: state }))
@@ -89,9 +99,22 @@ export default function App() {
         AI Spec Pipeline
         <div className="header-actions">
           {anyError && <span className="run-error">{anyError}</span>}
+          <button className="btn-policy" onClick={handlePolicyOpen}>비즈니스 정책</button>
           <button className="btn-reset" onClick={handleReset}>새 사이클</button>
         </div>
       </header>
+
+      {policyOpen && (
+        <div className="policy-overlay" onClick={() => setPolicyOpen(false)}>
+          <div className="policy-modal" onClick={e => e.stopPropagation()}>
+            <div className="policy-modal-header">
+              <span>비즈니스 정책</span>
+              <button onClick={() => setPolicyOpen(false)}>✕</button>
+            </div>
+            <pre className="policy-modal-body">{policy}</pre>
+          </div>
+        </div>
+      )}
       <main className="app-main">
         <InputPanel
           input={input}

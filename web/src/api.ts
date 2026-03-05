@@ -7,6 +7,13 @@ export interface JobResult {
   error?: string
 }
 
+export async function fetchPolicy(): Promise<string> {
+  const res = await fetch('/api/policy')
+  if (!res.ok) throw new Error(`서버 오류: ${res.status}`)
+  const data = await res.json()
+  return data.content
+}
+
 export async function runStage(profile: string, inputText: string): Promise<{ jobId: string }> {
   const res = await fetch(`/api/run/${profile}`, {
     method: 'POST',
