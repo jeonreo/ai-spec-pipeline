@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { flushSync } from 'react-dom'
 import { streamStage, fetchPolicy } from './api'
 import InputPanel from './components/InputPanel'
@@ -9,6 +9,37 @@ export type Tab = 'intake' | 'spec' | 'jira' | 'qa' | 'design'
 export type RunState = 'idle' | 'running' | 'done' | 'failed'
 
 const TABS: Tab[] = ['intake', 'spec', 'jira', 'qa', 'design']
+
+const DOWNSTREAM: Record<Tab, Tab[]> = {
+  intake: ['spec'],
+  spec:   ['jira', 'qa', 'design'],
+  jira:   [],
+  qa:     [],
+  design: [],
+}
+
+const EMPTY_OUTPUTS: Record<Tab, string> = { intake: '', spec: '', jira: '', qa: '', design: '' }
+const EMPTY_STATES:  Record<Tab, RunState> = { intake: 'idle', spec: 'idle', jira: 'idle', qa: 'idle', design: 'idle' }
+const EMPTY_ELAPSED: Record<Tab, number | null> = { intake: null, spec: null, jira: null, qa: null, design: null }
+const EMPTY_WARNINGS: Record<Tab, string> = { intake: '', spec: '', jira: '', qa: '', design: '' }
+const EMPTY_STALE:   Record<Tab, boolean> = { intake: false, spec: false, jira: false, qa: false, design: false }
+
+const SESSION_KEY = 'ai-spec-pipeline-session'
+
+function loadSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+
+const _saved = loadSession()
+
+function sanitizeRunStates(rs: Record<Tab, RunState>): Record<Tab, RunState> {
+  const next = { ...rs }
+  for (const tab of TABS) if (next[tab] === 'running') next[tab] = 'idle'
+  return next
+}
 
 function extractSpecSections(spec: string, headings: string[]): string {
   const lines = spec.split('\n')
@@ -35,16 +66,31 @@ interface Context {
 }
 
 export default function App() {
-  const [input, setInput]     = useState('')
-  const [outputs, setOutputs] = useState<Record<Tab, string>>({ intake: '', spec: '', jira: '', qa: '', design: '' })
-  const [runStates, setRunStates] = useState<Record<Tab, RunState>>({ intake: 'idle', spec: 'idle', jira: 'idle', qa: 'idle', design: 'idle' })
-  const [errors, setErrors]   = useState<Record<Tab, string>>({ intake: '', spec: '', jira: '', qa: '', design: '' })
-  const [warnings, setWarnings] = useState<Record<Tab, string>>({ intake: '', spec: '', jira: '', qa: '', design: '' })
+  const [input, setInput]       = useState<string>(_saved?.input ?? '')
+  const [outputs, setOutputs]   = useState<Record<Tab, string>>({ ...EMPTY_OUTPUTS, ..._saved?.outputs })
+  const [runStates, setRunStates] = useState<Record<Tab, RunState>>(
+    _saved?.runStates ? sanitizeRunStates({ ...EMPTY_STATES, ..._saved.runStates }) : EMPTY_STATES
+  )
+  const [errors, setErrors]     = useState<Record<Tab, string>>({ ...EMPTY_WARNINGS })
+  const [warnings, setWarnings] = useState<Record<Tab, string>>({ ...EMPTY_WARNINGS, ..._saved?.warnings })
   const [activeTab, setActiveTab] = useState<Tab>('intake')
-  const [elapsed, setElapsed] = useState<Record<Tab, number | null>>({ intake: null, spec: null, jira: null, qa: null, design: null })
-  const [policy, setPolicy] = useState<string | null>(null)
+  const [elapsed, setElapsed]   = useState<Record<Tab, number | null>>({ ...EMPTY_ELAPSED, ..._saved?.elapsed })
+  const [stale, setStale]       = useState<Record<Tab, boolean>>(EMPTY_STALE)
+  const [policy, setPolicy]     = useState<string | null>(null)
   const [policyOpen, setPolicyOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
+
+  // Auto-save session to localStorage
+  useEffect(() => {
+    const data = {
+      input,
+      outputs,
+      runStates: sanitizeRunStates(runStates),
+      elapsed,
+      warnings,
+    }
+    localStorage.setItem(SESSION_KEY, JSON.stringify(data))
+  }, [input, outputs, runStates, elapsed, warnings])
 
   async function handlePolicyOpen() {
     if (!policy) {
@@ -74,12 +120,12 @@ export default function App() {
     setStageError(tab, '')
     setWarnings(prev => ({ ...prev, [tab]: '' }))
     setElapsed(prev => ({ ...prev, [tab]: null }))
+    setStale(prev => ({ ...prev, [tab]: false }))
     setActiveTab(tab)
 
     const startedAt = Date.now()
 
     try {
-      // 현재 모든 출력물을 함께 전송 → 워크스페이스에 세션 전체 저장
       const result = await streamStage(tab, inputText, outputs, (accumulated) => {
         flushSync(() => {
           setOutputs(prev => ({ ...prev, [tab]: accumulated }))
@@ -91,6 +137,13 @@ export default function App() {
       setElapsed(prev => ({ ...prev, [tab]: elapsedSec }))
       setStageState(tab, 'done')
       if (result.warning) setWarnings(prev => ({ ...prev, [tab]: result.warning! }))
+
+      // Mark downstream stages stale
+      setStale(prev => {
+        const next = { ...prev, [tab]: false }
+        for (const ds of DOWNSTREAM[tab]) next[ds] = true
+        return next
+      })
     } catch (e) {
       setStageError(tab, e instanceof Error ? e.message : '오류 발생')
       setStageState(tab, 'failed')
@@ -103,12 +156,14 @@ export default function App() {
 
   function handleReset() {
     setInput('')
-    setOutputs({ intake: '', spec: '', jira: '', qa: '', design: '' })
-    setRunStates({ intake: 'idle', spec: 'idle', jira: 'idle', qa: 'idle', design: 'idle' })
-    setErrors({ intake: '', spec: '', jira: '', qa: '', design: '' })
-    setWarnings({ intake: '', spec: '', jira: '', qa: '', design: '' })
-    setElapsed({ intake: null, spec: null, jira: null, qa: null, design: null })
+    setOutputs({ ...EMPTY_OUTPUTS })
+    setRunStates({ ...EMPTY_STATES })
+    setErrors({ ...EMPTY_WARNINGS })
+    setWarnings({ ...EMPTY_WARNINGS })
+    setElapsed({ ...EMPTY_ELAPSED })
+    setStale({ ...EMPTY_STALE })
     setActiveTab('intake')
+    localStorage.removeItem(SESSION_KEY)
   }
 
   function handleRestore(inputText: string, restoredOutputs: Partial<Record<Tab, string>>) {
@@ -119,9 +174,20 @@ export default function App() {
       for (const tab of Object.keys(restoredOutputs) as Tab[]) next[tab] = 'done'
       return next
     })
-    setElapsed({ intake: null, spec: null, jira: null, qa: null, design: null })
+    setElapsed({ ...EMPTY_ELAPSED })
+    setStale({ ...EMPTY_STALE })
     const firstTab = TABS.find(t => restoredOutputs[t])
     if (firstTab) setActiveTab(firstTab)
+  }
+
+  function handleOutputChange(tab: Tab, val: string) {
+    setOutputs(prev => ({ ...prev, [tab]: val }))
+    // Mark downstream stale when user manually edits
+    setStale(prev => {
+      const next = { ...prev }
+      for (const ds of DOWNSTREAM[tab]) next[ds] = true
+      return next
+    })
   }
 
   const anyError = Object.values(errors).find(Boolean)
@@ -164,14 +230,16 @@ export default function App() {
           onRun={handleRun}
           onRunParallel={handleRunParallel}
           runStates={runStates}
+          stale={stale}
         />
         <OutputTabs
           outputs={outputs}
           activeTab={activeTab}
           onTabChange={setActiveTab}
-          onOutputChange={(tab, val) => setOutputs(prev => ({ ...prev, [tab]: val }))}
+          onOutputChange={handleOutputChange}
           elapsed={elapsed}
           warnings={warnings}
+          stale={stale}
         />
       </main>
     </div>

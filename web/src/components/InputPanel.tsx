@@ -11,17 +11,24 @@ const DELIVERY_STAGES: { tab: Tab; label: string; file: string; cls: string }[] 
   { tab: 'design', label: 'Design', file: 'design.html', cls: 'btn-design'  },
 ]
 
+const STEPPER_NODES = [
+  { label: 'Intake', tabs: ['intake'] as Tab[] },
+  { label: 'Spec',   tabs: ['spec']   as Tab[] },
+  { label: 'Jira / QA / Design', tabs: ['jira', 'qa', 'design'] as Tab[] },
+]
+
 interface Props {
   input: string
   onInputChange: (v: string) => void
   onRun: (tab: Tab) => void
   onRunParallel: () => void
   runStates: Record<Tab, RunState>
+  stale: Record<Tab, boolean>
 }
 
-function StageButton({ tab, label, file, cls, state, onRun }: {
+function StageButton({ tab, label, file, cls, state, stale, onRun }: {
   tab: Tab; label: string; file: string; cls: string
-  state: RunState; onRun: (tab: Tab) => void
+  state: RunState; stale: boolean; onRun: (tab: Tab) => void
 }) {
   const running = state === 'running'
   const done = state === 'done'
@@ -31,7 +38,7 @@ function StageButton({ tab, label, file, cls, state, onRun }: {
       onClick={() => onRun(tab)}
       disabled={running}
     >
-      <span className="btn-label">{label}</span>
+      <span className="btn-label">{label}{stale && done && <span className="stale-badge">stale</span>}</span>
       <span className="btn-file">
         {running ? '실행 중...' : done ? `재실행 → ${file}` : `→ ${file}`}
       </span>
@@ -39,7 +46,36 @@ function StageButton({ tab, label, file, cls, state, onRun }: {
   )
 }
 
-export default function InputPanel({ input, onInputChange, onRun, onRunParallel, runStates }: Props) {
+function nodeState(tabs: Tab[], runStates: Record<Tab, RunState>, stale: Record<Tab, boolean>): 'idle' | 'running' | 'done' | 'stale' | 'failed' {
+  if (tabs.some(t => runStates[t] === 'running')) return 'running'
+  if (tabs.some(t => stale[t] && runStates[t] === 'done')) return 'stale'
+  if (tabs.every(t => runStates[t] === 'done')) return 'done'
+  if (tabs.some(t => runStates[t] === 'failed')) return 'failed'
+  return 'idle'
+}
+
+function Stepper({ runStates, stale }: { runStates: Record<Tab, RunState>; stale: Record<Tab, boolean> }) {
+  return (
+    <div className="stepper">
+      {STEPPER_NODES.map((node, i) => {
+        const s = nodeState(node.tabs, runStates, stale)
+        return (
+          <div key={node.label} className="stepper-node-wrap">
+            <div className="stepper-item">
+              <div className={`stepper-dot stepper-dot--${s}`}>
+                {s === 'running' ? '…' : s === 'done' ? '✓' : s === 'stale' ? '!' : s === 'failed' ? '✕' : '○'}
+              </div>
+              <span className={`stepper-label stepper-label--${s}`}>{node.label}</span>
+            </div>
+            {i < STEPPER_NODES.length - 1 && <div className="stepper-connector" />}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+export default function InputPanel({ input, onInputChange, onRun, onRunParallel, runStates, stale }: Props) {
   const parallelRunning = (['jira', 'qa', 'design'] as const).some(t => runStates[t] === 'running')
   const specDone = runStates['spec'] === 'done'
 
@@ -54,13 +90,13 @@ export default function InputPanel({ input, onInputChange, onRun, onRunParallel,
       <div className="btn-group">
         <span className="stage-group-label">기반 단계</span>
         {BASE_STAGES.map(s => (
-          <StageButton key={s.tab} {...s} state={runStates[s.tab]} onRun={onRun} />
+          <StageButton key={s.tab} {...s} state={runStates[s.tab]} stale={stale[s.tab]} onRun={onRun} />
         ))}
 
         <div className="stage-divider" />
         <span className="stage-group-label">산출물</span>
         {DELIVERY_STAGES.map(s => (
-          <StageButton key={s.tab} {...s} state={runStates[s.tab]} onRun={onRun} />
+          <StageButton key={s.tab} {...s} state={runStates[s.tab]} stale={stale[s.tab]} onRun={onRun} />
         ))}
 
         <button
@@ -71,6 +107,8 @@ export default function InputPanel({ input, onInputChange, onRun, onRunParallel,
           {parallelRunning ? 'Jira · QA · Design 실행 중...' : '⚡ Jira · QA · Design 병렬 실행'}
         </button>
       </div>
+
+      <Stepper runStates={runStates} stale={stale} />
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { Tab } from '../App'
+import JiraView from './JiraView'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'intake', label: 'intake.md'   },
@@ -15,9 +16,10 @@ interface Props {
   onOutputChange: (tab: Tab, value: string) => void
   elapsed: Record<Tab, number | null>
   warnings: Record<Tab, string>
+  stale: Record<Tab, boolean>
 }
 
-export default function OutputTabs({ outputs, activeTab, onTabChange, onOutputChange, elapsed, warnings }: Props) {
+export default function OutputTabs({ outputs, activeTab, onTabChange, onOutputChange, elapsed, warnings, stale }: Props) {
   const current = activeTab
 
   return (
@@ -35,6 +37,7 @@ export default function OutputTabs({ outputs, activeTab, onTabChange, onOutputCh
               {elapsed[t.key] !== null && (
                 <span className="tab-elapsed">{elapsed[t.key]!.toFixed(1)}s</span>
               )}
+              {stale[t.key] && outputs[t.key] && <span className="tab-stale">stale</span>}
               {warnings[t.key] && <span className="tab-warning">⚠</span>}
             </button>
           ))}
@@ -65,12 +68,16 @@ export default function OutputTabs({ outputs, activeTab, onTabChange, onOutputCh
         {warnings[current] && (
           <div className="warning-banner">⚠ {warnings[current]}</div>
         )}
-        <textarea
-          key={current}
-          value={outputs[current]}
-          onChange={(e) => onOutputChange(current, e.target.value)}
-          placeholder={`${TABS.find(t => t.key === current)?.label} 결과가 여기에 표시됩니다.`}
-        />
+        {current === 'jira' ? (
+          <JiraView content={outputs.jira} onChange={(val) => onOutputChange('jira', val)} />
+        ) : (
+          <textarea
+            key={current}
+            value={outputs[current]}
+            onChange={(e) => onOutputChange(current, e.target.value)}
+            placeholder={`${TABS.find(t => t.key === current)?.label} 결과가 여기에 표시됩니다.`}
+          />
+        )}
       </div>
     </div>
   )
