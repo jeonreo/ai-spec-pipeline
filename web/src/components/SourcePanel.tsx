@@ -9,8 +9,8 @@ interface Props {
 }
 
 export default function SourcePanel({ input, onInputChange, onRun, runStates, stale }: Props) {
-  const intakeState  = runStates.intake
-  const intakeDone   = intakeState === 'done'
+  const intakeState   = runStates.intake
+  const intakeDone    = intakeState === 'done'
   const intakeRunning = intakeState === 'running'
 
   return (
@@ -40,13 +40,6 @@ export default function SourcePanel({ input, onInputChange, onRun, runStates, st
             <span className="btn-stage-file">→ intake.md</span>
           </button>
         </div>
-
-        {intakeDone && (
-          <div className="intake-status">
-            <span className="intake-status-dot">✓</span>
-            <span className="intake-status-label">intake.md 완료</span>
-          </div>
-        )}
       </div>
     </div>
   )

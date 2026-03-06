@@ -10,18 +10,20 @@ interface CardProps {
   stale: boolean
   elapsed: number | null
   warning: string
+  specDone: boolean
   defaultCollapsed?: boolean
   onRun: () => void
   children: React.ReactNode
 }
 
-function OutputCard({ title, icon, description, runState, stale, elapsed, warning, defaultCollapsed = false, onRun, children }: CardProps) {
+function OutputCard({ title, icon, description, runState, stale, elapsed, warning, specDone, defaultCollapsed = false, onRun, children }: CardProps) {
   const isDone    = runState === 'done'
   const isRunning = runState === 'running'
   const isFailed  = runState === 'failed'
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
 
   const showBody = (isDone || isRunning) && !collapsed
+  const canRun   = specDone && !isRunning
 
   return (
     <div className={`output-card${isDone ? ' output-card--done' : ''}${isFailed ? ' output-card--failed' : ''}`}>
@@ -38,7 +40,8 @@ function OutputCard({ title, icon, description, runState, stale, elapsed, warnin
           <button
             className={`btn-generate${isRunning ? ' btn-generate--running' : isDone ? ' btn-generate--done' : ''}`}
             onClick={onRun}
-            disabled={isRunning}
+            disabled={!canRun}
+            title={!specDone ? 'Decision Spec을 먼저 생성하세요' : undefined}
           >
             {isRunning ? '생성 중...' : isDone ? '↺' : 'Generate'}
           </button>
@@ -107,6 +110,7 @@ export default function OutputPanel({
           stale={stale.jira}
           elapsed={elapsed.jira}
           warning={warnings.jira}
+          specDone={specDone}
           onRun={() => onRun('jira')}
         >
           <JiraView
@@ -125,6 +129,7 @@ export default function OutputPanel({
           stale={stale.qa}
           elapsed={elapsed.qa}
           warning={warnings.qa}
+          specDone={specDone}
           onRun={() => onRun('qa')}
         >
           <textarea
@@ -143,6 +148,7 @@ export default function OutputPanel({
           stale={stale.design}
           elapsed={elapsed.design}
           warning={warnings.design}
+          specDone={specDone}
           onRun={() => onRun('design')}
         >
           <div className="design-output">

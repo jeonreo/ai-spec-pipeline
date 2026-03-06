@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { flushSync } from 'react-dom'
 import { streamStage, fetchPolicy } from './api'
 import SourcePanel from './components/SourcePanel'
+import IntakePanel from './components/IntakePanel'
 import SpecPanel from './components/SpecPanel'
 import OutputPanel from './components/OutputPanel'
 import HistoryPanel from './components/HistoryPanel'
@@ -230,15 +231,27 @@ export default function App() {
           runStates={runStates}
           stale={stale}
         />
-        <SpecPanel
-          content={outputs.spec}
-          onChange={val => handleOutputChange('spec', val)}
-          runState={runStates.spec}
-          elapsed={elapsed.spec}
-          warning={warnings.spec}
-          stale={stale.spec}
-          onRun={() => handleRun('spec')}
-        />
+        <div className="center-column">
+          <IntakePanel
+            content={outputs.intake}
+            onChange={val => handleOutputChange('intake', val)}
+            runState={runStates.intake}
+            elapsed={elapsed.intake}
+            stale={stale.intake}
+            specDone={runStates.spec === 'done'}
+            onRun={() => handleRun('intake')}
+          />
+          <SpecPanel
+            content={outputs.spec}
+            onChange={val => handleOutputChange('spec', val)}
+            runState={runStates.spec}
+            elapsed={elapsed.spec}
+            warning={warnings.spec}
+            stale={stale.spec}
+            specDone={runStates.spec === 'done'}
+            onRun={() => handleRun('spec')}
+          />
+        </div>
         <OutputPanel
           outputs={outputs}
           runStates={runStates}

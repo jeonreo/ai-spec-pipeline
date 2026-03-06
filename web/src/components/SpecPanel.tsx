@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { RunState } from '../App'
 
 interface Props {
@@ -8,6 +8,7 @@ interface Props {
   elapsed: number | null
   warning: string
   stale: boolean
+  specDone: boolean
   onRun: () => void
 }
 
@@ -32,8 +33,14 @@ function parseSpecSections(spec: string): Section[] {
   return sections
 }
 
-export default function SpecPanel({ content, onChange, runState, elapsed, warning, stale, onRun }: Props) {
+export default function SpecPanel({ content, onChange, runState, elapsed, warning, stale, specDone, onRun }: Props) {
   const [editMode, setEditMode] = useState(false)
+  // Spec이 없을 땐 접혀서 최소화, Spec 완료되면 펼침
+  const [collapsed, setCollapsed] = useState(!specDone)
+
+  useEffect(() => {
+    setCollapsed(!specDone)
+  }, [specDone])
 
   const isDone    = runState === 'done'
   const isRunning = runState === 'running'
@@ -44,7 +51,7 @@ export default function SpecPanel({ content, onChange, runState, elapsed, warnin
   }
 
   return (
-    <div className="spec-panel">
+    <div className={`spec-panel${collapsed ? ' spec-panel--collapsed' : ''}`}>
       <div className="panel-header">
         <div className="panel-header-left">
           <span className="panel-title">Decision Spec</span>
@@ -54,13 +61,18 @@ export default function SpecPanel({ content, onChange, runState, elapsed, warnin
           {warning && <span className="warning-dot" title={warning}>⚠</span>}
         </div>
         <div className="panel-header-right">
-          {isDone && (
+          {isDone && !collapsed && (
             <>
               <button className="btn-icon-action" onClick={handleCopy} title="복사">복사</button>
               <button className="btn-icon-action" onClick={() => setEditMode(v => !v)}>
                 {editMode ? '섹션 뷰' : '편집'}
               </button>
             </>
+          )}
+          {isDone && (
+            <button className="btn-collapse" onClick={() => setCollapsed(v => !v)} title={collapsed ? '펼치기' : '접기'}>
+              {collapsed ? '▾' : '▴'}
+            </button>
           )}
           <button
             className={`btn-run-spec${isRunning ? ' btn-run-spec--running' : ''}`}
@@ -72,34 +84,36 @@ export default function SpecPanel({ content, onChange, runState, elapsed, warnin
         </div>
       </div>
 
-      <div className="spec-body">
-        {isRunning || editMode || (content && !isDone) ? (
-          <textarea
-            className="spec-textarea"
-            value={content}
-            onChange={e => onChange(e.target.value)}
-            placeholder="Spec 생성 중..."
-          />
-        ) : isDone && sections.length > 0 ? (
-          <div className="spec-sections">
-            {sections.map(s => (
-              <div key={s.heading} className="spec-section">
-                <div className="spec-section-heading">{s.heading}</div>
-                <div className="spec-section-content">
-                  {s.content || <span className="spec-section-empty">내용 없음</span>}
+      {!collapsed && (
+        <div className="spec-body">
+          {isRunning || editMode || (content && !isDone) ? (
+            <textarea
+              className="spec-textarea"
+              value={content}
+              onChange={e => onChange(e.target.value)}
+              placeholder="Spec 생성 중..."
+            />
+          ) : isDone && sections.length > 0 ? (
+            <div className="spec-sections">
+              {sections.map(s => (
+                <div key={s.heading} className="spec-section">
+                  <div className="spec-section-heading">{s.heading}</div>
+                  <div className="spec-section-content">
+                    {s.content || <span className="spec-section-empty">내용 없음</span>}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="spec-placeholder">
-            <div className="spec-placeholder-icon">📋</div>
-            <p className="spec-placeholder-title">Decision Spec</p>
-            <p className="spec-placeholder-sub">Intake 실행 후 Spec을 생성하세요.</p>
-            <p className="spec-placeholder-note">Spec은 Jira, QA, Design 산출물의 단일 진실 공급원입니다.</p>
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          ) : (
+            <div className="spec-placeholder">
+              <div className="spec-placeholder-icon">📋</div>
+              <p className="spec-placeholder-title">Decision Spec</p>
+              <p className="spec-placeholder-sub">Intake 실행 후 Spec을 생성하세요.</p>
+              <p className="spec-placeholder-note">Spec은 Jira, QA, Design 산출물의 단일 진실 공급원입니다.</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
