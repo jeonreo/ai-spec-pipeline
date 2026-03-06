@@ -97,7 +97,13 @@ export interface JiraProject  { key: string; name: string }
 export interface JiraIssueType { id: string;  name: string }
 export interface CreateJiraResult { key: string; url: string }
 
-export async function fetchJiraStatus(): Promise<{ configured: boolean }> {
+export interface JiraStatus {
+  configured: boolean
+  defaultProjectKey: string
+  defaultIssueTypeName: string
+}
+
+export async function fetchJiraStatus(): Promise<JiraStatus> {
   const res = await fetch('/api/jira/status')
   if (!res.ok) throw new Error(`서버 오류: ${res.status}`)
   return res.json()
@@ -123,10 +129,11 @@ export async function fetchJiraIssueTypes(projectKey: string): Promise<JiraIssue
 
 export async function createJiraTicket(payload: {
   projectKey: string
-  issueTypeId: string
   summary: string
   description: Record<string, string>
   acceptanceCriteria: string[]
+  issueTypeId?: string
+  issueTypeName?: string
   specContent?: string
 }): Promise<CreateJiraResult> {
   const res = await fetch('/api/jira/create', {

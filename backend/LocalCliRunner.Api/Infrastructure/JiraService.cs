@@ -7,9 +7,11 @@ namespace LocalCliRunner.Api.Infrastructure;
 
 public class JiraConfig
 {
-    public string BaseUrl    { get; set; } = "";
-    public string Email      { get; set; } = "";
-    public string ApiToken   { get; set; } = "";
+    public string BaseUrl              { get; set; } = "";
+    public string Email                { get; set; } = "";
+    public string ApiToken             { get; set; } = "";
+    public string DefaultProjectKey    { get; set; } = "";
+    public string DefaultIssueTypeName { get; set; } = "";
 }
 
 public class JiraProject
@@ -26,11 +28,12 @@ public class JiraIssueType
 
 public record CreateIssueRequest(
     string ProjectKey,
-    string IssueTypeId,
     string Summary,
     Dictionary<string, string> Description,
     List<string> AcceptanceCriteria,
-    string? SpecContent = null);
+    string? IssueTypeId   = null,
+    string? IssueTypeName = null,
+    string? SpecContent   = null);
 
 public class JiraService
 {
@@ -59,6 +62,9 @@ public class JiraService
     }
 
     public string IssueUrl(string key) => $"{_config.BaseUrl.TrimEnd('/')}/browse/{key}";
+
+    public string DefaultProjectKey    => _config.DefaultProjectKey;
+    public string DefaultIssueTypeName => _config.DefaultIssueTypeName;
 
     public bool IsConfigured =>
         !string.IsNullOrEmpty(_config.BaseUrl) &&
@@ -101,6 +107,17 @@ public class JiraService
 
     public async Task<string> CreateIssueAsync(CreateIssueRequest req)
     {
+        // IssueTypeId 없으면 이름으로 조회해 ID 해석
+        var typeId = req.IssueTypeId;
+        if (string.IsNullOrEmpty(typeId) && !string.IsNullOrEmpty(req.IssueTypeName))
+        {
+            var types = await GetIssueTypesAsync(req.ProjectKey);
+            typeId = types.FirstOrDefault(t =>
+                t.Name.Equals(req.IssueTypeName, StringComparison.OrdinalIgnoreCase))?.Id
+                ?? types.FirstOrDefault()?.Id
+                ?? throw new InvalidOperationException($"이슈 유형 '{req.IssueTypeName}'을 찾을 수 없습니다.");
+        }
+
         var adf = BuildAdfDescription(req.Description, req.AcceptanceCriteria);
 
         var body = new
@@ -108,7 +125,7 @@ public class JiraService
             fields = new
             {
                 project     = new { key = req.ProjectKey },
-                issuetype   = new { id  = req.IssueTypeId },
+                issuetype   = new { id  = typeId },
                 summary     = req.Summary,
                 description = adf,
             }

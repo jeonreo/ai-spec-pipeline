@@ -7,10 +7,15 @@ namespace LocalCliRunner.Api.Controllers;
 [Route("api/jira")]
 public class JiraController(JiraService jiraService) : ControllerBase
 {
-    // GET /api/jira/status  — 연동 설정 여부 확인
+    // GET /api/jira/status  — 연동 설정 여부 + 기본값 반환
     [HttpGet("status")]
     public IActionResult Status() =>
-        Ok(new { configured = jiraService.IsConfigured });
+        Ok(new
+        {
+            configured           = jiraService.IsConfigured,
+            defaultProjectKey    = jiraService.DefaultProjectKey,
+            defaultIssueTypeName = jiraService.DefaultIssueTypeName,
+        });
 
     // GET /api/jira/projects
     [HttpGet("projects")]

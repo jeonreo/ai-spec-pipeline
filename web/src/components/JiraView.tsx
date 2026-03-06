@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
-  fetchJiraProjects, fetchJiraIssueTypes, createJiraTicket,
-  JiraProject, JiraIssueType, CreateJiraResult,
+  fetchJiraStatus, fetchJiraProjects, fetchJiraIssueTypes, createJiraTicket,
+  JiraProject, JiraIssueType, JiraStatus, CreateJiraResult,
 } from '../api'
 
 interface JiraData {
@@ -20,6 +20,7 @@ type CreateState = 'idle' | 'loading-projects' | 'ready' | 'loading-types' | 'cr
 
 export default function JiraView({ content, onChange, specContent }: Props) {
   const [showRaw, setShowRaw] = useState(false)
+  const [status, setStatus] = useState<JiraStatus | null>(null)
   const [createState, setCreateState] = useState<CreateState>('idle')
   const [projects, setProjects] = useState<JiraProject[]>([])
   const [issueTypes, setIssueTypes] = useState<JiraIssueType[]>([])
@@ -28,23 +29,53 @@ export default function JiraView({ content, onChange, specContent }: Props) {
   const [createError, setCreateError] = useState('')
   const [result, setResult] = useState<CreateJiraResult | null>(null)
 
+  useEffect(() => {
+    fetchJiraStatus().then(setStatus).catch(() => {})
+  }, [])
+
   let data: JiraData | null = null
   if (content) {
     try { data = JSON.parse(content) } catch { /* show raw */ }
   }
 
-  async function handleOpenCreateForm() {
+  const hasDefaults = !!(status?.defaultProjectKey && status?.defaultIssueTypeName)
+
+  // 기본값 있으면 원클릭 생성
+  async function handleQuickCreate() {
+    if (!data || !status) return
+    setCreateState('creating')
+    setCreateError('')
+    try {
+      const res = await createJiraTicket({
+        projectKey:         status.defaultProjectKey,
+        issueTypeName:      status.defaultIssueTypeName,
+        summary:            data.summary,
+        description:        data.description ?? {},
+        acceptanceCriteria: data.acceptance_criteria ?? [],
+        specContent,
+      })
+      setResult(res)
+      setCreateState('done')
+    } catch (e) {
+      setCreateError(e instanceof Error ? e.message : '티켓 생성 실패')
+      setCreateState('error')
+    }
+  }
+
+  // 기본값 없으면 폼 열기
+  async function handleOpenForm() {
     setCreateState('loading-projects')
     setCreateError('')
     setResult(null)
     try {
       const list = await fetchJiraProjects()
       setProjects(list)
-      setSelectedProject(list[0]?.key ?? '')
+      const firstKey = list[0]?.key ?? ''
+      setSelectedProject(firstKey)
       setIssueTypes([])
       setSelectedType('')
       setCreateState('ready')
-      if (list[0]?.key) loadIssueTypes(list[0].key)
+      if (firstKey) loadIssueTypes(firstKey)
     } catch (e) {
       setCreateError(e instanceof Error ? e.message : '프로젝트 로드 실패')
       setCreateState('error')
@@ -53,7 +84,6 @@ export default function JiraView({ content, onChange, specContent }: Props) {
 
   async function loadIssueTypes(projectKey: string) {
     setCreateState('loading-types')
-    setCreateError('')
     try {
       const types = await fetchJiraIssueTypes(projectKey)
       setIssueTypes(types)
@@ -76,11 +106,11 @@ export default function JiraView({ content, onChange, specContent }: Props) {
     setCreateError('')
     try {
       const res = await createJiraTicket({
-        projectKey:          selectedProject,
-        issueTypeId:         selectedType,
-        summary:             data.summary,
-        description:         data.description ?? {},
-        acceptanceCriteria:  data.acceptance_criteria ?? [],
+        projectKey:         selectedProject,
+        issueTypeId:        selectedType,
+        summary:            data.summary,
+        description:        data.description ?? {},
+        acceptanceCriteria: data.acceptance_criteria ?? [],
         specContent,
       })
       setResult(res)
@@ -91,8 +121,8 @@ export default function JiraView({ content, onChange, specContent }: Props) {
     }
   }
 
-  const formVisible = createState !== 'idle'
   const isLoading = createState === 'loading-projects' || createState === 'loading-types' || createState === 'creating'
+  const formVisible = createState !== 'idle' && createState !== 'done'
 
   if (!content || showRaw || !data) {
     return (
@@ -113,18 +143,31 @@ export default function JiraView({ content, onChange, specContent }: Props) {
     <div className="jira-card-wrapper">
       <div className="jira-card">
         <div className="jira-card-header">
-          <span className="jira-type-badge">Story</span>
+          <span className="jira-type-badge">
+            {status?.defaultIssueTypeName || 'Story'}
+          </span>
           <h2 className="jira-summary">{data.summary}</h2>
           <div className="jira-header-actions">
             {createState === 'done' && result ? (
               <a className="jira-created-link" href={result.url} target="_blank" rel="noreferrer">
                 {result.key} ↗
               </a>
-            ) : (
+            ) : hasDefaults ? (
+              // 원클릭 생성 (기본값 있음)
               <button
                 className="btn-jira-create"
-                onClick={handleOpenCreateForm}
-                disabled={isLoading || createState === 'done'}
+                onClick={handleQuickCreate}
+                disabled={isLoading}
+                title={`${status!.defaultProjectKey} / ${status!.defaultIssueTypeName}`}
+              >
+                {createState === 'creating' ? '생성 중...' : `Jira 생성 · ${status!.defaultProjectKey}`}
+              </button>
+            ) : (
+              // 폼 열기 (기본값 없음)
+              <button
+                className="btn-jira-create"
+                onClick={handleOpenForm}
+                disabled={isLoading}
               >
                 {createState === 'loading-projects' ? '로딩 중...' : 'Jira 생성'}
               </button>
@@ -133,11 +176,16 @@ export default function JiraView({ content, onChange, specContent }: Props) {
           </div>
         </div>
 
-        {/* Create form */}
-        {formVisible && createState !== 'done' && (
+        {/* 에러 표시 */}
+        {createError && (
           <div className="jira-create-form">
-            {createError && <div className="jira-create-error">{createError}</div>}
+            <div className="jira-create-error">{createError}</div>
+          </div>
+        )}
 
+        {/* 드롭다운 폼 (기본값 없을 때만) */}
+        {formVisible && !hasDefaults && (
+          <div className="jira-create-form">
             {(createState === 'ready' || createState === 'loading-types' || createState === 'creating') && (
               <>
                 <div className="jira-create-row">
