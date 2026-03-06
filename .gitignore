@@ -11,3 +11,4 @@ backend/**/obj/
 .vs/
 .vscode/settings.json
 *.user
+backend/LocalCliRunner.Api/appsettings.Development.json

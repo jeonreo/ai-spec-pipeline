@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { flushSync } from 'react-dom'
 import { streamStage, fetchPolicy } from './api'
-import InputPanel from './components/InputPanel'
-import OutputTabs from './components/OutputTabs'
+import SourcePanel from './components/SourcePanel'
+import SpecPanel from './components/SpecPanel'
+import OutputPanel from './components/OutputPanel'
 import HistoryPanel from './components/HistoryPanel'
 
 export type Tab = 'intake' | 'spec' | 'jira' | 'qa' | 'design'
@@ -73,7 +74,6 @@ export default function App() {
   )
   const [errors, setErrors]     = useState<Record<Tab, string>>({ ...EMPTY_WARNINGS })
   const [warnings, setWarnings] = useState<Record<Tab, string>>({ ...EMPTY_WARNINGS, ..._saved?.warnings })
-  const [activeTab, setActiveTab] = useState<Tab>('intake')
   const [elapsed, setElapsed]   = useState<Record<Tab, number | null>>({ ...EMPTY_ELAPSED, ..._saved?.elapsed })
   const [stale, setStale]       = useState<Record<Tab, boolean>>(EMPTY_STALE)
   const [policy, setPolicy]     = useState<string | null>(null)
@@ -121,7 +121,6 @@ export default function App() {
     setWarnings(prev => ({ ...prev, [tab]: '' }))
     setElapsed(prev => ({ ...prev, [tab]: null }))
     setStale(prev => ({ ...prev, [tab]: false }))
-    setActiveTab(tab)
 
     const startedAt = Date.now()
 
@@ -162,7 +161,6 @@ export default function App() {
     setWarnings({ ...EMPTY_WARNINGS })
     setElapsed({ ...EMPTY_ELAPSED })
     setStale({ ...EMPTY_STALE })
-    setActiveTab('intake')
     localStorage.removeItem(SESSION_KEY)
   }
 
@@ -176,8 +174,6 @@ export default function App() {
     })
     setElapsed({ ...EMPTY_ELAPSED })
     setStale({ ...EMPTY_STALE })
-    const firstTab = TABS.find(t => restoredOutputs[t])
-    if (firstTab) setActiveTab(firstTab)
   }
 
   function handleOutputChange(tab: Tab, val: string) {
@@ -193,9 +189,12 @@ export default function App() {
   const anyError = Object.values(errors).find(Boolean)
 
   return (
-    <div id="root" style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div id="root">
       <header className="app-header">
-        AI Spec Pipeline
+        <div className="app-header-left">
+          <span className="app-title">AI Spec Pipeline</span>
+          <span className="app-pipeline-flow">Source → Decision Spec → Outputs</span>
+        </div>
         <div className="header-actions">
           {anyError && <span className="run-error">{anyError}</span>}
           <button className="btn-policy" onClick={() => setHistoryOpen(true)}>히스토리</button>
@@ -223,23 +222,33 @@ export default function App() {
         </div>
       )}
 
-      <main className="app-main">
-        <InputPanel
+      <main className="dashboard">
+        <SourcePanel
           input={input}
           onInputChange={setInput}
           onRun={handleRun}
-          onRunParallel={handleRunParallel}
           runStates={runStates}
           stale={stale}
         />
-        <OutputTabs
+        <SpecPanel
+          content={outputs.spec}
+          onChange={val => handleOutputChange('spec', val)}
+          runState={runStates.spec}
+          elapsed={elapsed.spec}
+          warning={warnings.spec}
+          stale={stale.spec}
+          onRun={() => handleRun('spec')}
+        />
+        <OutputPanel
           outputs={outputs}
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          onOutputChange={handleOutputChange}
+          runStates={runStates}
+          stale={stale}
           elapsed={elapsed}
           warnings={warnings}
-          stale={stale}
+          specDone={runStates.spec === 'done'}
+          onRun={handleRun}
+          onRunParallel={handleRunParallel}
+          onOutputChange={handleOutputChange}
         />
       </main>
     </div>

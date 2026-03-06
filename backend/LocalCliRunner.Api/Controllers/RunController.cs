@@ -157,8 +157,11 @@ public class RunController(
         var scriptPath = promptBuilder.GetVerifyScriptPath(profile);
         if (string.IsNullOrEmpty(scriptPath)) return null;
 
+        var tempFile = Path.GetTempFileName();
         try
         {
+            await System.IO.File.WriteAllTextAsync(tempFile, outputContent);
+
             var scriptContent = (await System.IO.File.ReadAllTextAsync(scriptPath))
                 .Replace("\r\n", "\n").Replace("\r", "\n");
 
@@ -169,8 +172,8 @@ public class RunController(
                 RedirectStandardError  = true,
                 UseShellExecute        = false,
             };
-            // 파일 경로 없이 내용을 env var로 전달 — OS 경로 문제 완전 제거
-            psi.Environment["OUTPUT_CONTENT"] = outputContent;
+            // 내용은 temp 파일로 전달 (env var는 긴 JSON/Windows에서 불안정)
+            psi.Environment["CONTENT_FILE"] = tempFile.Replace('\\', '/');
 
             using var proc = Process.Start(psi)!;
             await proc.StandardInput.WriteAsync(scriptContent);
@@ -186,6 +189,10 @@ public class RunController(
         catch
         {
             // bash 없는 환경 등 — 무시
+        }
+        finally
+        {
+            try { System.IO.File.Delete(tempFile); } catch { /* ignore */ }
         }
 
         return null;
