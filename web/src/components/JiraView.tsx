@@ -176,8 +176,25 @@ export default function JiraView({ content, onChange, specContent }: Props) {
           </div>
         </div>
 
-        {/* 에러 표시 */}
-        {createError && (
+        {/* 기본값 생성 예정 미리보기 */}
+        {hasDefaults && createState !== 'done' && (
+          <div className="jira-create-preview">
+            <span className="jira-preview-label">생성 예정</span>
+            <span className="jira-preview-chip">{status!.defaultProjectKey}</span>
+            <span className="jira-preview-sep">·</span>
+            <span className="jira-preview-chip">{status!.defaultIssueTypeName}</span>
+            {specContent && (
+              <>
+                <span className="jira-preview-sep">·</span>
+                <span className="jira-preview-attach">spec.md 첨부</span>
+              </>
+            )}
+            {createError && <span className="jira-preview-error">{createError}</span>}
+          </div>
+        )}
+
+        {/* 에러 표시 (기본값 없을 때) */}
+        {!hasDefaults && createError && (
           <div className="jira-create-form">
             <div className="jira-create-error">{createError}</div>
           </div>
