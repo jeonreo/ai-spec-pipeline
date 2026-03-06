@@ -17,7 +17,8 @@ public class RunController(
     PromptBuilder promptBuilder,
     ICliRunner cliRunner,
     PiiTokenizer piiTokenizer,
-    WorkspaceManager workspaceManager) : ControllerBase
+    WorkspaceManager workspaceManager,
+    SettingsService settingsService) : ControllerBase
 {
     private static readonly HashSet<string> ValidProfiles =
         ["intake", "spec", "jira", "qa", "design"];
@@ -35,7 +36,8 @@ public class RunController(
         if (!ValidProfiles.Contains(profile))
             return BadRequest(new { error = $"Unknown profile: {profile}" });
 
-        var command = new RunStageCommand(request.InputText, profile);
+        var stageModel = settingsService.GetModelForStage(profile);
+        var command = new RunStageCommand(request.InputText, profile, stageModel);
         var result  = handler.Enqueue(command);
 
         return Accepted(new
@@ -99,13 +101,15 @@ public class RunController(
 
         var fullOutput = new StringBuilder();
 
+        var model = settingsService.GetModelForStage(profile);
+
         await cliRunner.StreamAsync(prompt, workspacePath, async chunk =>
         {
             fullOutput.Append(chunk);
             var json = JsonSerializer.Serialize(new { chunk });
             await Response.WriteAsync($"data: {json}\n\n", ct);
             await Response.Body.FlushAsync(ct);
-        }, ct);
+        }, model, ct);
 
         var restored = piiTokenizer.Detokenize(fullOutput.ToString().TrimEnd(), piiMap);
 

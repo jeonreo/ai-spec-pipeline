@@ -6,6 +6,7 @@ import IntakePanel from './components/IntakePanel'
 import SpecPanel from './components/SpecPanel'
 import OutputPanel from './components/OutputPanel'
 import HistoryPanel from './components/HistoryPanel'
+import SettingsModal from './components/SettingsModal'
 
 export type Tab = 'intake' | 'spec' | 'jira' | 'qa' | 'design'
 export type RunState = 'idle' | 'running' | 'done' | 'failed'
@@ -80,6 +81,7 @@ export default function App() {
   const [policy, setPolicy]     = useState<string | null>(null)
   const [policyOpen, setPolicyOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   // Auto-save session to localStorage
   useEffect(() => {
@@ -199,10 +201,15 @@ export default function App() {
         <div className="header-actions">
           {anyError && <span className="run-error">{anyError}</span>}
           <button className="btn-policy" onClick={() => setHistoryOpen(true)}>히스토리</button>
+          <button className="btn-policy" onClick={() => setSettingsOpen(true)}>모델 설정</button>
           <button className="btn-policy" onClick={handlePolicyOpen}>비즈니스 정책</button>
           <button className="btn-reset" onClick={handleReset}>새 사이클</button>
         </div>
       </header>
+
+      {settingsOpen && (
+        <SettingsModal onClose={() => setSettingsOpen(false)} />
+      )}
 
       {historyOpen && (
         <HistoryPanel

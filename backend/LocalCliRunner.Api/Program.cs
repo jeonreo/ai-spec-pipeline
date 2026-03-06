@@ -10,6 +10,7 @@ builder.Services.AddControllers();
 builder.Services.AddSingleton<JobRegistry>();
 builder.Services.AddSingleton<PiiTokenizer>();
 builder.Services.AddSingleton<JiraService>();
+builder.Services.AddSingleton<SettingsService>();
 
 // 스코프/트랜지언트 서비스
 builder.Services.AddScoped<ICliRunner, ClaudeCliRunner>();

@@ -19,7 +19,7 @@
 
 ## Jira 티켓 규칙
 - Story Point 기준: 1(2h 이하) / 2(반나절) / 3(하루) / 5(2~3일) / 8(1주)
-- 이슈 타입: Epic > Story > Sub-task
+- 이슈 타입: Epic > Task > Sub-task
 - 레이블: `backend`, `frontend`, `infra`, `design` 중 해당 항목 표시
 
 ## QA 정책

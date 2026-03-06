@@ -1102,3 +1102,38 @@ body {
   color: var(--text);
 }
 .jira-raw-wrapper textarea:focus { border-color: var(--accent); }
+
+/* ── Settings Modal ───────────────────────────────────────────── */
+.settings-modal { width: 480px; max-width: 95vw; }
+.settings-modal-body { padding: 16px 20px 20px; }
+.settings-desc { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+.settings-loading { color: var(--muted); font-size: 13px; }
+.settings-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.settings-table th {
+  text-align: left;
+  padding: 6px 10px;
+  color: var(--muted);
+  font-weight: 500;
+  border-bottom: 1px solid var(--border);
+}
+.settings-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.settings-stage-name { font-weight: 500; }
+.settings-model-select {
+  width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+.settings-model-select:focus { outline: none; border-color: var(--accent); }
+.settings-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+.settings-saved { font-size: 12px; color: #4caf50; }
+.settings-error { font-size: 12px; color: #e74c3c; margin-top: 8px; }

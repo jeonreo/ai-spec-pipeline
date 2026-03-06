@@ -114,6 +114,18 @@ A. 품절 표시로 유지한다.
 우측 상단 **히스토리** 버튼으로 과거 실행 기록 열람 및 복원 가능.
 날짜 필터 · 페이지네이션 지원. 세션의 모든 스테이지 출력물이 함께 저장된다.
 
+### 모델 설정
+
+우측 상단 **모델 설정** 버튼으로 각 스테이지에서 사용할 Claude 모델을 개별 지정할 수 있다.
+
+| 모델 | 특징 | 추천 단계 |
+|------|------|-----------| 
+| Haiku 4.5 | 빠름 · 저렴 | Intake, Jira, Design |
+| Sonnet 4.6 | 균형 | Spec, QA |
+| Opus 4.6 | 최고 품질 | 복잡한 Spec |
+
+설정은 서버의 `pipeline-settings.json`에 저장되며 재시작 없이 즉시 반영된다.
+
 ---
 
 ## 단계별 역할
@@ -151,9 +163,13 @@ backend/LocalCliRunner.Api/
     GET  /api/history                히스토리 목록 (페이징 · 날짜 필터)
     GET  /api/history/{id}           히스토리 상세 (전체 세션 복원)
     GET  /api/policy                 비즈니스 정책 조회
+  Controllers/SettingsController.cs  stage별 모델 설정
+    GET  /api/settings               현재 설정 조회
+    PUT  /api/settings               설정 저장
   Application/RunStageHandler.cs    비동기 잡 실행
   Infrastructure/
-    ClaudeCliRunner.cs              claude CLI 프로세스 실행 (스트리밍 지원)
+    ClaudeCliRunner.cs              claude CLI 프로세스 실행 (스트리밍 지원, 호출별 모델 지정)
+    SettingsService.cs              pipeline-settings.json 읽기/쓰기 (stage별 모델 관리)
     PromptBuilder.cs                SKILL.md + template.md 조합, CSS 경로 제공
     PiiTokenizer.cs                 개인정보 토큰화 / 복원
     JobRegistry.cs                  인메모리 잡 상태 관리
@@ -168,6 +184,7 @@ web/src/
     OutputPanel.tsx            우측: Jira · QA · Design 카드 (접기/펼치기)
     JiraView.tsx               Jira 생성 폼 (프로젝트 · 이슈 타입 선택)
     HistoryPanel.tsx           히스토리 사이드 패널
+    SettingsModal.tsx          모델 설정 모달 (stage별 모델 선택 · 저장)
 
 workspaces/local/               실행 결과 저장 (gitignore)
   {date}-{id}/
@@ -186,11 +203,29 @@ workspaces/local/               실행 결과 저장 (gitignore)
 {
   "Cli": {
     "Command": "claude",
-    "Args": "-p --model claude-haiku-4-5-20251001 -",
+    "DefaultModel": "claude-haiku-4-5-20251001",
     "TimeoutSeconds": 300
   },
   "Workspace": { "BaseDir": "../../workspaces" },
   "Prompts": { "Dir": "../../prompts" }
+}
+```
+
+`DefaultModel`은 stage별 설정이 없을 때의 fallback 값이다.
+
+**stage별 모델은 웹 UI(모델 설정 버튼)로 변경하거나, 아래 파일을 직접 수정한다.**
+
+`backend/LocalCliRunner.Api/pipeline-settings.json` (서버 첫 실행 시 기본값으로 자동 생성)
+
+```json
+{
+  "stageModels": {
+    "intake": "claude-haiku-4-5-20251001",
+    "spec":   "claude-sonnet-4-6",
+    "jira":   "claude-haiku-4-5-20251001",
+    "qa":     "claude-sonnet-4-6",
+    "design": "claude-haiku-4-5-20251001"
+  }
 }
 ```
 
@@ -211,16 +246,18 @@ workspaces/local/               실행 결과 저장 (gitignore)
 
 ## Model Strategy
 
-모든 요청에 동일한 모델을 사용하는 방식은 비효율적입니다.
-작업 목적에 따라 모델을 분리하면 응답 속도와 비용을 현실적으로 관리할 수 있습니다.
+각 스테이지는 서로 다른 모델을 사용하도록 설정할 수 있다.
+웹 UI **모델 설정** 또는 `pipeline-settings.json` 직접 편집 — 두 가지 방법 모두 지원한다.
 
-현재는 단일 모델(`appsettings.json`의 `Args`)로 운영하며,
-단계별 모델 분리는 Roadmap 항목입니다.
+| Stage | 기본값 | 이유 |
+|-------|--------|------|
+| Intake | Haiku 4.5 | 구조화 · 정제 위주 — 빠른 응답 우선 |
+| Spec | Sonnet 4.6 | 핵심 허브 — 품질이 모든 산출물에 영향 |
+| Jira | Haiku 4.5 | JSON 변환 — 정형 작업, 경량 모델로 충분 |
+| QA | Sonnet 4.6 | 테스트 케이스 추론 — 정확도 중요 |
+| Design | Haiku 4.5 | HTML 생성 — 템플릿 기반, 경량 모델로 충분 |
 
-예시 분리 기준:
-- 요약 · 구조화 (Intake) → 경량 모델
-- Spec 생성 → 고성능 모델
-- 디자인 초안 → 중간 모델
+변경 내용은 `pipeline-settings.json`에 저장되며 서버 재시작 없이 즉시 반영된다.
 
 ---
 
@@ -257,7 +294,7 @@ Claude CLI는 프로젝트 구조를 분석하고 실행 환경을 안내할 수
 
 ## Roadmap
 
-- [ ] 단계별 모델 분리 (Intake · Spec · Design 각각 최적 모델)
+- [x] 단계별 모델 분리 — 웹 UI + pipeline-settings.json
 - [ ] Service Account 기반 Jira 인증
 - [ ] FE / BE 개발 산출물 생성 (구현 코드 초안)
 - [ ] QA Automation 스크립트 생성

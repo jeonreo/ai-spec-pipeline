@@ -65,7 +65,7 @@ public class RunStageHandler(
             await File.WriteAllTextAsync(layout.PromptFile, prompt);
 
             // Run CLI
-            var result = await cliRunner.RunAsync(prompt, job.WorkspacePath);
+            var result = await cliRunner.RunAsync(prompt, job.WorkspacePath, command.Model);
 
             // PII 복원 (출력 후)
             var restoredOutput = piiTokenizer.Detokenize(result.Stdout, piiMap);

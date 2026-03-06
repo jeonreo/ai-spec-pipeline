@@ -9,10 +9,16 @@ namespace LocalCliRunner.Api.Infrastructure;
 /// </summary>
 public class ClaudeCliRunner(IConfiguration config, ILogger<ClaudeCliRunner> logger) : ICliRunner
 {
-    public async Task<CliResult> RunAsync(string promptContent, string workspacePath, CancellationToken ct = default)
+    private string BuildArgs(string? model)
+    {
+        var effectiveModel = model ?? config["Cli:DefaultModel"] ?? "claude-haiku-4-5-20251001";
+        return $"-p --model {effectiveModel} -";
+    }
+
+    public async Task<CliResult> RunAsync(string promptContent, string workspacePath, string? model = null, CancellationToken ct = default)
     {
         var command    = config["Cli:Command"] ?? "claude";
-        var args       = config["Cli:Args"]    ?? "-p --model claude-haiku-4-5-20251001 -";
+        var args       = BuildArgs(model);
         var timeoutSec = int.TryParse(config["Cli:TimeoutSeconds"], out var t) ? t : 120;
 
         var psi = new ProcessStartInfo
@@ -55,10 +61,10 @@ public class ClaudeCliRunner(IConfiguration config, ILogger<ClaudeCliRunner> log
         return new CliResult(process.ExitCode, stdoutSb.ToString().TrimEnd(), stderrSb.ToString().TrimEnd());
     }
 
-    public async Task StreamAsync(string promptContent, string workspacePath, Func<string, Task> onChunk, CancellationToken ct = default)
+    public async Task StreamAsync(string promptContent, string workspacePath, Func<string, Task> onChunk, string? model = null, CancellationToken ct = default)
     {
         var command    = config["Cli:Command"] ?? "claude";
-        var args       = config["Cli:Args"]    ?? "-p --model claude-haiku-4-5-20251001 -";
+        var args       = BuildArgs(model);
         var timeoutSec = int.TryParse(config["Cli:TimeoutSeconds"], out var t) ? t : 300;
 
         var psi = new ProcessStartInfo
