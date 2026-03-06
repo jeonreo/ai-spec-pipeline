@@ -91,6 +91,56 @@ export async function fetchPolicy(): Promise<string> {
   return data.content
 }
 
+// ── Jira Integration ──────────────────────────────────────────────────────
+
+export interface JiraProject  { key: string; name: string }
+export interface JiraIssueType { id: string;  name: string }
+export interface CreateJiraResult { key: string; url: string }
+
+export async function fetchJiraStatus(): Promise<{ configured: boolean }> {
+  const res = await fetch('/api/jira/status')
+  if (!res.ok) throw new Error(`서버 오류: ${res.status}`)
+  return res.json()
+}
+
+export async function fetchJiraProjects(): Promise<JiraProject[]> {
+  const res = await fetch('/api/jira/projects')
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data.error ?? `서버 오류: ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function fetchJiraIssueTypes(projectKey: string): Promise<JiraIssueType[]> {
+  const res = await fetch(`/api/jira/issuetypes/${projectKey}`)
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data.error ?? `서버 오류: ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function createJiraTicket(payload: {
+  projectKey: string
+  issueTypeId: string
+  summary: string
+  description: Record<string, string>
+  acceptanceCriteria: string[]
+  specContent?: string
+}): Promise<CreateJiraResult> {
+  const res = await fetch('/api/jira/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error ?? `서버 오류: ${res.status}`)
+  return data
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function runStage(profile: string, inputText: string): Promise<{ jobId: string }> {
   const res = await fetch(`/api/run/${profile}`, {
     method: 'POST',

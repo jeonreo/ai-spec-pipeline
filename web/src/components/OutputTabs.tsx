@@ -69,7 +69,7 @@ export default function OutputTabs({ outputs, activeTab, onTabChange, onOutputCh
           <div className="warning-banner">⚠ {warnings[current]}</div>
         )}
         {current === 'jira' ? (
-          <JiraView content={outputs.jira} onChange={(val) => onOutputChange('jira', val)} />
+          <JiraView content={outputs.jira} onChange={(val) => onOutputChange('jira', val)} specContent={outputs.spec} />
         ) : (
           <textarea
             key={current}

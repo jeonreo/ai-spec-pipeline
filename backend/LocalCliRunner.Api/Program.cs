@@ -9,6 +9,7 @@ builder.Services.AddControllers();
 // 싱글턴: Job 레지스트리는 서버 수명 동안 유지
 builder.Services.AddSingleton<JobRegistry>();
 builder.Services.AddSingleton<PiiTokenizer>();
+builder.Services.AddSingleton<JiraService>();
 
 // 스코프/트랜지언트 서비스
 builder.Services.AddScoped<ICliRunner, ClaudeCliRunner>();
