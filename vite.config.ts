@@ -5,8 +5,14 @@ export default defineConfig({
   root: 'web',
   plugins: [react()],
   server: {
+    host: '127.0.0.1',
+    port: 5173,
+    strictPort: true,
     proxy: {
-      '/api': 'http://localhost:5001',
+      '/api': {
+        target: 'http://127.0.0.1:5001',
+        changeOrigin: true,
+      },
     },
   },
   build: {

@@ -4,6 +4,7 @@ public class WorkspaceManager(IConfiguration config)
 {
     private readonly string _baseDir = Path.GetFullPath(
         config["Workspace:BaseDir"] ?? Path.Combine(AppContext.BaseDirectory, "..", "..", "workspaces"));
+    private string LocalRoot => Path.Combine(_baseDir, "local");
 
     public string Create(string jobId)
     {
@@ -18,9 +19,26 @@ public class WorkspaceManager(IConfiguration config)
 
     public IEnumerable<string> ListAll()
     {
-        var root = Path.Combine(_baseDir, "local");
+        var root = LocalRoot;
         if (!Directory.Exists(root)) return [];
         return Directory.GetDirectories(root)
                         .OrderByDescending(d => d);
+    }
+
+    public bool Delete(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return false;
+        if (Path.GetFileName(id) != id) return false;
+
+        var root = Path.GetFullPath(LocalRoot);
+        var target = Path.GetFullPath(Path.Combine(root, id));
+
+        if (!target.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            return false;
+        if (!Directory.Exists(target))
+            return false;
+
+        Directory.Delete(target, recursive: true);
+        return true;
     }
 }

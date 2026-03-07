@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchHistory, fetchHistoryDetail, HistoryItem } from '../api'
+import { deleteHistoryItem, fetchHistory, fetchHistoryDetail, type HistoryItem } from '../api'
 import type { Tab } from '../App'
 
 interface Props {
@@ -23,34 +23,39 @@ export default function HistoryPanel({ onRestore, onClose }: Props) {
   const [date, setDate] = useState('')
   const [loading, setLoading] = useState(true)
   const [loadingId, setLoadingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [error, setError] = useState('')
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
-  function load(p: number, d: string) {
+  function load(nextPage: number, nextDate: string) {
     setLoading(true)
-    fetchHistory(p, PAGE_SIZE, d || undefined)
+    setError('')
+    fetchHistory(nextPage, PAGE_SIZE, nextDate || undefined)
       .then(data => {
         setItems(data.items)
         setTotal(data.total)
       })
+      .catch(e => setError(e instanceof Error ? e.message : '히스토리를 불러오지 못했습니다.'))
       .finally(() => setLoading(false))
   }
 
   useEffect(() => { load(1, '') }, [])
 
-  function handleDateChange(val: string) {
-    setDate(val)
+  function handleDateChange(value: string) {
+    setDate(value)
     setPage(1)
-    load(1, val)
+    load(1, value)
   }
 
-  function handlePage(p: number) {
-    setPage(p)
-    load(p, date)
+  function handlePage(nextPage: number) {
+    setPage(nextPage)
+    load(nextPage, date)
   }
 
   async function handleLoad(id: string) {
     setLoadingId(id)
+    setError('')
     try {
       const detail = await fetchHistoryDetail(id)
       const outputs: Partial<Record<Tab, string>> = {}
@@ -59,8 +64,28 @@ export default function HistoryPanel({ onRestore, onClose }: Props) {
       }
       onRestore(detail.inputText, outputs)
       onClose()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '히스토리를 불러오지 못했습니다.')
     } finally {
       setLoadingId(null)
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!window.confirm('이 히스토리를 삭제할까요?')) return
+
+    setDeletingId(id)
+    setError('')
+    try {
+      await deleteHistoryItem(id)
+      const nextTotal = Math.max(0, total - 1)
+      const nextPage = Math.min(page, Math.max(1, Math.ceil(nextTotal / PAGE_SIZE)))
+      setPage(nextPage)
+      load(nextPage, date)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '히스토리 삭제에 실패했습니다.')
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -69,7 +94,7 @@ export default function HistoryPanel({ onRestore, onClose }: Props) {
       <div className="history-panel" onClick={e => e.stopPropagation()}>
         <div className="history-header">
           <span>히스토리</span>
-          <button onClick={onClose}>✕</button>
+          <button onClick={onClose}>×</button>
         </div>
 
         <div className="history-filter">
@@ -87,7 +112,8 @@ export default function HistoryPanel({ onRestore, onClose }: Props) {
         </div>
 
         <div className="history-body">
-          {loading && <div className="history-empty">불러오는 중…</div>}
+          {error && <div className="history-error">{error}</div>}
+          {loading && <div className="history-empty">불러오는 중...</div>}
           {!loading && items.length === 0 && (
             <div className="history-empty">해당하는 히스토리가 없습니다.</div>
           )}
@@ -96,17 +122,26 @@ export default function HistoryPanel({ onRestore, onClose }: Props) {
               <div className="history-item-meta">
                 <span className="history-time">{parseTimestamp(item.id)}</span>
                 <span className="history-stages">
-                  {item.stages.map(s => s.replace(/\.\w+$/, '')).join(' · ')}
+                  {item.stages.map(s => s.replace(/\.\w+$/, '')).join(' / ')}
                 </span>
               </div>
               <div className="history-preview">{item.inputPreview}</div>
-              <button
-                className="btn-history-load"
-                disabled={loadingId === item.id}
-                onClick={() => handleLoad(item.id)}
-              >
-                {loadingId === item.id ? '불러오는 중…' : '불러오기'}
-              </button>
+              <div className="history-item-actions">
+                <button
+                  className="btn-history-delete"
+                  disabled={loadingId === item.id || deletingId === item.id}
+                  onClick={() => handleDelete(item.id)}
+                >
+                  {deletingId === item.id ? '삭제 중...' : '삭제'}
+                </button>
+                <button
+                  className="btn-history-load"
+                  disabled={loadingId === item.id || deletingId === item.id}
+                  onClick={() => handleLoad(item.id)}
+                >
+                  {loadingId === item.id ? '불러오는 중...' : '불러오기'}
+                </button>
+              </div>
             </div>
           ))}
         </div>

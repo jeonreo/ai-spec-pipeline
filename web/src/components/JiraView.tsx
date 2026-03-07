@@ -18,6 +18,36 @@ interface Props {
 
 type FormState = 'loading' | 'ready' | 'loading-types' | 'creating' | 'done' | 'error'
 
+function parseJiraData(content: string): JiraData | null {
+  if (!content) return null
+
+  try {
+    const parsed = JSON.parse(content) as Record<string, unknown>
+    const summary = typeof parsed.summary === 'string' ? parsed.summary : ''
+    const description = parsed.description && typeof parsed.description === 'object' && !Array.isArray(parsed.description)
+      ? Object.fromEntries(
+          Object.entries(parsed.description as Record<string, unknown>)
+            .filter(([, value]) => typeof value === 'string')
+            .map(([key, value]) => [key, value as string]),
+        )
+      : {}
+
+    const rawCriteria = Array.isArray(parsed.acceptance_criteria)
+      ? parsed.acceptance_criteria
+      : Array.isArray(parsed.acceptanceCriteria)
+        ? parsed.acceptanceCriteria
+        : []
+
+    return {
+      summary,
+      description,
+      acceptance_criteria: rawCriteria.filter((item): item is string => typeof item === 'string'),
+    }
+  } catch {
+    return null
+  }
+}
+
 export default function JiraView({ content, onChange, specContent }: Props) {
   const [showRaw, setShowRaw] = useState(false)
   const [status, setStatus] = useState<JiraStatus | null>(null)
@@ -120,10 +150,7 @@ export default function JiraView({ content, onChange, specContent }: Props) {
     }
   }
 
-  let data: JiraData | null = null
-  if (content) {
-    try { data = JSON.parse(content) } catch { /* show raw */ }
-  }
+  const data = parseJiraData(content)
 
   const isLoading = formState === 'loading' || formState === 'loading-types' || formState === 'creating'
   const selectedTypeName = issueTypes.find(t => t.id === selectedType)?.name ?? status?.defaultIssueTypeName ?? 'Story'

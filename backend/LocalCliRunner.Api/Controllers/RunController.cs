@@ -26,7 +26,7 @@ public class RunController(
     private static readonly Dictionary<string, string> OutputFiles = new()
     {
         ["intake"] = "intake.md", ["spec"] = "spec.md",
-        ["jira"]   = "jira.json", ["qa"]   = "qa.md", ["design"] = "design.html",
+        ["jira"]   = "jira.json", ["qa"]   = "qa.md", ["design"] = "design.json",
     };
 
     // POST /api/run/{profile}
@@ -114,12 +114,12 @@ public class RunController(
         var restored = piiTokenizer.Detokenize(fullOutput.ToString().TrimEnd(), piiMap);
 
         // jira: 마크다운 코드블록 마커 제거 (```json ... ```)
-        if (profile == "jira")
+        if (profile is "jira" or "design")
             restored = StripCodeFence(restored);
 
         // <!--STYLE--> 마커를 실제 CSS로 교체 (design 전용)
         var stylePath = promptBuilder.GetStyleInjectPath(profile);
-        if (!string.IsNullOrEmpty(stylePath))
+        if (!string.IsNullOrEmpty(stylePath) && restored.Contains("<!--STYLE-->", StringComparison.Ordinal))
         {
             var css = await System.IO.File.ReadAllTextAsync(stylePath, ct);
             restored = restored.Replace("<!--STYLE-->", $"<style>\n{css}\n</style>", StringComparison.Ordinal);
@@ -158,6 +158,13 @@ public class RunController(
 
     private async Task<string?> RunVerifyScriptAsync(string profile, string outputContent)
     {
+        if (profile == "design")
+            return null;
+
+        var builtInWarning = RunBuiltInVerify(profile, outputContent);
+        if (profile == "jira" || builtInWarning is not null)
+            return builtInWarning;
+
         var scriptPath = promptBuilder.GetVerifyScriptPath(profile);
         if (string.IsNullOrEmpty(scriptPath)) return null;
 
@@ -201,6 +208,45 @@ public class RunController(
 
         return null;
     }
+
+    private static string? RunBuiltInVerify(string profile, string outputContent) =>
+        profile switch
+        {
+            "jira" => VerifyJiraOutput(outputContent),
+            _      => null,
+        };
+
+    private static string? VerifyJiraOutput(string outputContent)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(outputContent);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+                return "Jira 결과는 JSON object여야 합니다.";
+
+            var root = doc.RootElement;
+            var missing = new List<string>();
+
+            if (!root.TryGetProperty("summary", out var summary) || summary.ValueKind != JsonValueKind.String)
+                missing.Add("\"summary\"");
+
+            if (!root.TryGetProperty("description", out var description) || description.ValueKind != JsonValueKind.Object)
+                missing.Add("\"description\"");
+
+            var hasAcceptanceCriteria =
+                root.TryGetProperty("acceptance_criteria", out var acceptanceCriteria) && acceptanceCriteria.ValueKind == JsonValueKind.Array
+                || root.TryGetProperty("acceptanceCriteria", out acceptanceCriteria) && acceptanceCriteria.ValueKind == JsonValueKind.Array;
+
+            if (!hasAcceptanceCriteria)
+                missing.Add("\"acceptance_criteria\"");
+
+            return missing.Count > 0 ? $"누락 필드: {string.Join(" ", missing)}" : null;
+        }
+        catch (JsonException ex)
+        {
+            return $"Jira JSON 파싱 실패: {ex.Message}";
+        }
+    }
 }
 
 [ApiController]
@@ -208,7 +254,7 @@ public class RunController(
 public class HistoryController(WorkspaceManager workspaceManager) : ControllerBase
 {
     private static readonly string[] StageFiles =
-        ["intake.md", "spec.md", "jira.json", "qa.md", "design.html"];
+        ["intake.md", "spec.md", "jira.json", "qa.md", "design.json", "design.html"];
 
     // GET /api/history?page=1&pageSize=20&date=2026-03-05
     [HttpGet]
@@ -276,6 +322,13 @@ public class HistoryController(WorkspaceManager workspaceManager) : ControllerBa
         }
 
         return Ok(new { id, inputText, outputs });
+    }
+
+    // DELETE /api/history/{id}
+    [HttpDelete("{id}")]
+    public IActionResult Delete(string id)
+    {
+        return workspaceManager.Delete(id) ? NoContent() : NotFound();
     }
 }
 

@@ -18,7 +18,7 @@ public class RunStageHandler(
         ["spec"]     = "spec.md",
         ["jira"]     = "jira.json",
         ["qa"]       = "qa.md",
-        ["design"]   = "design.html",
+        ["design"]   = "design.json",
     };
 
 
@@ -69,6 +69,8 @@ public class RunStageHandler(
 
             // PII 복원 (출력 후)
             var restoredOutput = piiTokenizer.Detokenize(result.Stdout, piiMap);
+            if (command.Profile is "jira" or "design")
+                restoredOutput = StripCodeFence(restoredOutput);
 
             // Write output (복원된 결과 저장)
             var outPath = layout.OutputFile(job.OutputFile!);
@@ -99,5 +101,22 @@ public class RunStageHandler(
             job.Status = JobStatus.Failed;
             job.Error  = ex.Message;
         }
+    }
+
+    private static string StripCodeFence(string text)
+    {
+        var s = text.TrimStart();
+        if (s.StartsWith("```", StringComparison.Ordinal))
+        {
+            var firstNewline = s.IndexOf('\n');
+            if (firstNewline >= 0)
+                s = s[(firstNewline + 1)..];
+        }
+
+        var trimmed = s.TrimEnd();
+        if (trimmed.EndsWith("```", StringComparison.Ordinal))
+            s = trimmed[..trimmed.LastIndexOf("```", StringComparison.Ordinal)];
+
+        return s.Trim();
     }
 }

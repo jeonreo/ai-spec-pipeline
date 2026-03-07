@@ -12,6 +12,18 @@ function Check-Tool($name, $installUrl) {
     Write-Host "[ OK ] $($name.PadRight(8)): $ver" -ForegroundColor Green
 }
 
+function Stop-PortIfBusy([int]$port) {
+    $lines = netstat -ano 2>$null | Select-String "TCP\s+\S+:$port\s"
+    if (-not $lines) { return }
+
+    $processId = (($lines[0] -split '\s+') | Where-Object { $_ -match '^\d+$' } | Select-Object -Last 1)
+    if ($processId) {
+        Write-Host "[ .. ] Port $port in use (PID $processId) - stopping..."
+        Stop-Process -Id ([int]$processId) -Force -ErrorAction SilentlyContinue
+        Start-Sleep 1
+    }
+}
+
 Write-Host ""
 Write-Host "====================================" -ForegroundColor Cyan
 Write-Host "  AI Spec Pipeline - Startup Check" -ForegroundColor Cyan
@@ -35,16 +47,9 @@ if (-not (Test-Path "$root\node_modules")) {
     Write-Host "[ OK ] npm install done" -ForegroundColor Green
 }
 
-# Kill port 5001 if busy
-$lines = netstat -ano 2>$null | Select-String "TCP\s+\S+:5001\s"
-if ($lines) {
-    $pid5001 = (($lines[0] -split '\s+') | Where-Object { $_ -match '^\d+$' } | Select-Object -Last 1)
-    if ($pid5001) {
-        Write-Host "[ .. ] Port 5001 in use (PID $pid5001) - stopping..."
-        Stop-Process -Id ([int]$pid5001) -Force -ErrorAction SilentlyContinue
-        Start-Sleep 1
-    }
-}
+# Kill app ports if busy
+Stop-PortIfBusy 5001
+Stop-PortIfBusy 5173
 
 Write-Host ""
 $backendDir  = "$root\backend\LocalCliRunner.Api"
@@ -68,5 +73,5 @@ if ($wtExe) {
 }
 
 Write-Host ""
-Write-Host "Done! Backend: http://localhost:5001  Frontend: http://localhost:5173" -ForegroundColor Cyan
+Write-Host "Done! Backend: http://127.0.0.1:5001  Frontend: http://127.0.0.1:5173" -ForegroundColor Cyan
 Write-Host ""

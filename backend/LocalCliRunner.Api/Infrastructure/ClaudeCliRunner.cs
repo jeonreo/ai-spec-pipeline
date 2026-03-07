@@ -89,7 +89,7 @@ public class ClaudeCliRunner(IConfiguration config, ILogger<ClaudeCliRunner> log
         process.StandardInput.Close();
 
         // char 단위로 읽어 즉시 콜백 (줄바꿈 대기 없음)
-        var buffer = new char[256];
+        var buffer = new char[1024];
         int count;
         while ((count = await process.StandardOutput.ReadAsync(buffer, 0, buffer.Length)) > 0
                && !cts.Token.IsCancellationRequested)

@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import { Tab, RunState } from '../App'
+import DesignPackageView from './DesignPackageView'
 import JiraView from './JiraView'
 
 interface CardProps {
@@ -13,17 +15,29 @@ interface CardProps {
   specDone: boolean
   defaultCollapsed?: boolean
   onRun: () => void
-  children: React.ReactNode
+  children: ReactNode
 }
 
-function OutputCard({ title, icon, description, runState, stale, elapsed, warning, specDone, defaultCollapsed = false, onRun, children }: CardProps) {
-  const isDone    = runState === 'done'
+function OutputCard({
+  title,
+  icon,
+  description,
+  runState,
+  stale,
+  elapsed,
+  warning,
+  specDone,
+  defaultCollapsed = false,
+  onRun,
+  children,
+}: CardProps) {
+  const isDone = runState === 'done'
   const isRunning = runState === 'running'
-  const isFailed  = runState === 'failed'
+  const isFailed = runState === 'failed'
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
 
   const showBody = (isDone || isRunning) && !collapsed
-  const canRun   = specDone && !isRunning
+  const canRun = specDone && !isRunning
 
   return (
     <div className={`output-card${isDone ? ' output-card--done' : ''}${isFailed ? ' output-card--failed' : ''}`}>
@@ -36,37 +50,35 @@ function OutputCard({ title, icon, description, runState, stale, elapsed, warnin
         <div className="output-card-actions">
           {elapsed !== null && <span className="elapsed-badge">{elapsed.toFixed(1)}s</span>}
           {isDone && stale && <span className="stage-stale-badge">stale</span>}
-          {warning && <span className="warning-dot" title={warning}>⚠</span>}
+          {warning && <span className="warning-dot" title={warning}>!</span>}
           <button
             className={`btn-generate${isRunning ? ' btn-generate--running' : isDone ? ' btn-generate--done' : ''}`}
             onClick={onRun}
             disabled={!canRun}
-            title={!specDone ? 'Decision Spec을 먼저 생성하세요' : undefined}
+            title={!specDone ? 'Generate the decision spec first.' : undefined}
           >
-            {isRunning ? '생성 중...' : isDone ? '↺' : 'Generate'}
+            {isRunning ? 'Running...' : isDone ? 'Regenerate' : 'Generate'}
           </button>
           {(isDone || isRunning) && (
             <button
               className="btn-collapse"
-              onClick={() => setCollapsed(v => !v)}
-              title={collapsed ? '펼치기' : '접기'}
+              onClick={() => setCollapsed(value => !value)}
+              title={collapsed ? 'Expand' : 'Collapse'}
             >
-              {collapsed ? '▾' : '▴'}
+              {collapsed ? '+' : '-'}
             </button>
           )}
         </div>
       </div>
-      {showBody && (
-        <div className="output-card-body">{children}</div>
-      )}
+      {showBody && <div className="output-card-body">{children}</div>}
     </div>
   )
 }
 
 const PLANNED_OUTPUTS = [
-  { title: 'FE Implementation', icon: '🖥', desc: 'Frontend code from spec' },
-  { title: 'BE Implementation', icon: '⚙', desc: 'Backend API from spec' },
-  { title: 'QA Automation',     icon: '🤖', desc: 'Automated test scripts' },
+  { title: 'FE Implementation', icon: 'FE', desc: 'Frontend code from spec' },
+  { title: 'BE Implementation', icon: 'BE', desc: 'Backend API from spec' },
+  { title: 'QA Automation', icon: 'AT', desc: 'Automated test scripts' },
 ]
 
 interface Props {
@@ -82,10 +94,17 @@ interface Props {
 }
 
 export default function OutputPanel({
-  outputs, runStates, stale, elapsed, warnings,
-  specDone, onRun, onRunParallel, onOutputChange,
+  outputs,
+  runStates,
+  stale,
+  elapsed,
+  warnings,
+  specDone,
+  onRun,
+  onRunParallel,
+  onOutputChange,
 }: Props) {
-  const parallelRunning = (['jira', 'qa', 'design'] as Tab[]).some(t => runStates[t] === 'running')
+  const parallelRunning = (['jira', 'qa', 'design'] as Tab[]).some(tab => runStates[tab] === 'running')
 
   return (
     <div className="output-panel">
@@ -95,17 +114,17 @@ export default function OutputPanel({
           className="btn-parallel"
           onClick={onRunParallel}
           disabled={parallelRunning || !specDone}
-          title="Spec 기반 Jira, QA, Design 병렬 생성"
+          title="Generate Jira, QA, and Design outputs in parallel."
         >
-          {parallelRunning ? '생성 중...' : '⚡ 전체 생성'}
+          {parallelRunning ? 'Running...' : 'Generate All'}
         </button>
       </div>
 
       <div className="output-cards">
         <OutputCard
           title="Jira Ticket"
-          icon="🎫"
-          description="Create Jira issue from decision spec"
+          icon="JR"
+          description="Create a Jira issue from the decision spec"
           runState={runStates.jira}
           stale={stale.jira}
           elapsed={elapsed.jira}
@@ -115,15 +134,15 @@ export default function OutputPanel({
         >
           <JiraView
             content={outputs.jira}
-            onChange={val => onOutputChange('jira', val)}
+            onChange={value => onOutputChange('jira', value)}
             specContent={outputs.spec}
           />
         </OutputCard>
 
         <OutputCard
           title="QA Test Cases"
-          icon="🧪"
-          description="Test scenarios from acceptance criteria"
+          icon="QA"
+          description="Create test scenarios from acceptance criteria"
           defaultCollapsed
           runState={runStates.qa}
           stale={stale.qa}
@@ -135,14 +154,14 @@ export default function OutputPanel({
           <textarea
             className="output-textarea"
             value={outputs.qa}
-            onChange={e => onOutputChange('qa', e.target.value)}
+            onChange={event => onOutputChange('qa', event.target.value)}
           />
         </OutputCard>
 
         <OutputCard
-          title="Design Draft"
-          icon="🎨"
-          description="UI wireframe from spec"
+          title="Design Package"
+          icon="DS"
+          description="Structured handoff package and optional Clover preview"
           defaultCollapsed
           runState={runStates.design}
           stale={stale.design}
@@ -151,32 +170,20 @@ export default function OutputPanel({
           specDone={specDone}
           onRun={() => onRun('design')}
         >
-          <div className="design-output">
-            <button
-              className="btn-preview"
-              onClick={() => {
-                const blob = new Blob([outputs.design], { type: 'text/html' })
-                window.open(URL.createObjectURL(blob))
-              }}
-            >
-              미리보기 열기
-            </button>
-            <textarea
-              className="output-textarea"
-              value={outputs.design}
-              onChange={e => onOutputChange('design', e.target.value)}
-            />
-          </div>
+          <DesignPackageView
+            content={outputs.design}
+            onChange={value => onOutputChange('design', value)}
+          />
         </OutputCard>
 
         <div className="planned-section">
           <span className="planned-section-title">Next Outputs</span>
-          {PLANNED_OUTPUTS.map(p => (
-            <div key={p.title} className="planned-card">
-              <span className="planned-icon">{p.icon}</span>
+          {PLANNED_OUTPUTS.map(item => (
+            <div key={item.title} className="planned-card">
+              <span className="planned-icon">{item.icon}</span>
               <div className="planned-info">
-                <span className="planned-name">{p.title}</span>
-                <span className="planned-desc">{p.desc}</span>
+                <span className="planned-name">{item.title}</span>
+                <span className="planned-desc">{item.desc}</span>
               </div>
               <span className="badge-planned">planned</span>
             </div>

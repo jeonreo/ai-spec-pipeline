@@ -1,50 +1,187 @@
 ---
 name: design
-description: 기능 스펙 기반 CLOver Design System 관리자 대시보드 HTML 생성
+description: Create a design-system-agnostic Design Package v1 JSON from the spec. The current rendering target is Clover Admin Design System.
 ---
 
-아래 HTML 템플릿의 `[placeholder]` 항목을 spec 내용으로 채워 완성된 HTML을 출력하라.
+Your job is not to generate HTML directly. Read the spec and output a single `Design Package v1` JSON object that can be used for:
 
-## 규칙
+- Clover quick preview rendering
+- Figma Make prompt handoff
+- Cursor or Claude Code implementation guidance
 
-- `[placeholder]` 를 모두 spec 기반 실제 텍스트로 교체 (Lorem ipsum, 예시 문구 금지)
-- `<!--STYLE-->` 주석은 그대로 유지할 것 (절대 삭제하거나 `<style>` 블록으로 교체하지 말 것)
-- HTML 기본 골격(snb, topbar, page-wrap, content)은 유지할 것
-- JavaScript 없음
+## Output Rules
 
-## 레이아웃 선택 기준
+- Output valid JSON only.
+- Do not use markdown code fences.
+- Do not output HTML, CSS, prose, or explanations.
+- If information is unclear, stay conservative and capture structure rather than inventing visual detail.
+- Keep the package design-system-agnostic by default.
+- Put Clover-specific rendering hints only under `adapterHints.clover`.
 
-spec의 기능 성격에 따라 내부 구조를 조정하라:
+## Required Top-Level Fields
 
-- **상세/조회 화면** (사용자 상세, 주문 상세 등): `detail-layout` (2컬럼: 좌측 카드 + 우측 섹션들) 사용
-- **목록 화면** (목록, 검색, 대시보드): `detail-layout` 대신 `list-layout` 사용하고 툴바 + table + pagination 구성
-- **대시보드/요약**: stat-grid (지표 카드 4개) + 테이블 조합
+- `version`
+- `meta`
+- `purpose`
+- `layout`
+- `sections`
+- `dataModel`
+- `components`
+- `states`
+- `interactions`
+- `styleNotes`
+- `handoff`
 
-## 컴포넌트 선택 기준
+## Field Rules
 
-| 상황 | 사용 클래스 |
-|------|------------|
-| 상태 표시 (활성/완료/성공) | `badge badge-green` |
-| 타입/분류 표시 | `badge badge-blue` |
-| 비활성/기본 상태 | `badge badge-gray` |
-| 경고/주의 | `badge badge-orange` |
-| 오류/취소 | `badge badge-red` |
-| On/Off 설정 항목 | `toggle-wrap` + `toggle` |
-| 세부 기록/이력 탐색 | `tab-nav` + `tab-item` |
-| 구독/계약/플랜 표시 | `sub-card` 구조 |
-| 외부 링크 액션 | `btn-arrow` |
-| 핵심 수치/통계 | `stat-grid` + `stat-card` |
+### meta
 
-## SNB 구성 지침
+- `screenId`: kebab-case
+- `screenName`: concise human-readable name
+- `screenType`: one of `detail`, `list`, `dashboard`, `form`
+- `sourceSpecVersion`: short source label if available, otherwise `"spec-v1"`
+- `designSystemTarget`: always `"clover-admin"`
+- `locale`: `"ko-KR"`
 
-- `snb-group-label`: 기능 도메인 단위로 그룹핑 (예: Account, License, Analytics)
-- 현재 화면의 메뉴에만 `active` 클래스 부여
-- 서비스명과 이니셜은 spec의 서비스명 기반으로 작성
+### purpose
 
-## 데이터 표현
+- Summarize the screen purpose in 1-2 sentences.
+- Include `primaryUser`, `businessGoal`, and `successCriteria`.
 
-- 날짜: `YYYY-MM-DD` 형식 사용 (예시 데이터로 현실적인 값 사용)
-- ID/해시: 실제처럼 보이는 8-12자 영숫자 조합
-- 숫자 데이터: 현실적인 범위의 예시값
-- 상태값: spec의 상태 정의를 그대로 사용
+### layout
 
+- `pattern` must be one of:
+  - `detail-with-sections`
+  - `list-with-toolbar`
+  - `dashboard-summary`
+  - `form-flow`
+- `structure` must be ordered from top to bottom.
+- `priority` should reflect user attention order.
+- `density` should be `compact`, `comfortable`, or `spacious`.
+
+### sections
+
+Each section must contain:
+
+- `id`
+- `title`
+- `role`
+- `description`
+- `contents`
+
+Allowed `role` examples:
+
+- `summary`
+- `filter`
+- `actions`
+- `form`
+- `data-table`
+- `status`
+- `logs`
+
+### dataModel
+
+- Include the main `entities`.
+- Include `keyFields`.
+- Include `tableColumns` when a table or log list exists.
+
+### components
+
+- `recommended` must use generic component names such as:
+  - `PageHeader`
+  - `SearchInput`
+  - `Button`
+  - `Card`
+  - `Badge`
+  - `Tabs`
+  - `Table`
+  - `Modal`
+  - `Toast`
+- `requiredBehaviors` should capture must-have interaction expectations.
+- `forbiddenPatterns` should block arbitrary custom UI patterns.
+
+### states
+
+- Split screen-level and component-level states.
+- Consider `loading`, `empty`, `error`, and `ready` whenever relevant.
+
+### interactions
+
+- Capture actual interaction rules such as confirmation, validation, sorting, refresh, and keyboard focus.
+- Do not add decorative animation guidance.
+
+### styleNotes
+
+- Focus on operational clarity and design-system adherence.
+- Avoid marketing-style decoration.
+- Prefer semantic state representation over custom styling.
+
+### handoff
+
+- `figmaMakePrompt`: a concise prompt the designer can paste into Figma Make.
+- `implementationNotes`: short implementation constraints for Cursor or Claude Code.
+
+### adapterHints.clover
+
+Use this to improve Clover quick preview fidelity. The top-level package must stay design-system-agnostic, but Clover preview hints can be added here.
+
+Prefer including:
+
+- `layoutPattern`: `list-layout`, `detail-layout`, or `dashboard-layout`
+- `menuGroup`
+- `menuItems`
+- `breadcrumbs`
+- `toolbar`
+- `leftPanel`
+- `summaryGrid`
+- `cards`
+- `table`
+- `badgeMapping`
+- `preferredBlocks`
+
+#### adapterHints.clover.toolbar
+
+- `primarySearchPlaceholder`
+- `secondarySearchPlaceholder`
+- `filterChips`
+- `resultLabel`
+
+#### adapterHints.clover.leftPanel
+
+- `title`
+- `subtitle`
+- `badges`
+- `fields`
+- `actions`
+
+#### adapterHints.clover.summaryGrid
+
+Each item may include:
+
+- `label`
+- `value`
+- `subValue`
+
+#### adapterHints.clover.cards
+
+Each card may include:
+
+- `title`
+- `subtitle`
+- `status`
+- `meta`
+- `bullets`
+- `actions`
+
+#### adapterHints.clover.table
+
+- `columns`
+- `rows`
+
+## Additional Guidance
+
+- Base everything on the actual spec.
+- Do not invent new flows that are not implied by the spec.
+- Prefer reusable admin UI patterns over novel compositions.
+- Optimize for handoff quality, not visual flourish.
+- When the screen clearly matches a Clover admin list or detail pattern, include Clover adapter hints so the preview can look structurally close to the real product.

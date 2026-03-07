@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react'
-import { flushSync } from 'react-dom'
+import { useState, useEffect, startTransition } from 'react'
 import { streamStage, fetchPolicy } from './api'
 import SourcePanel from './components/SourcePanel'
 import IntakePanel from './components/IntakePanel'
@@ -13,19 +12,11 @@ export type RunState = 'idle' | 'running' | 'done' | 'failed'
 
 const TABS: Tab[] = ['intake', 'spec', 'jira', 'qa', 'design']
 
-const DOWNSTREAM: Record<Tab, Tab[]> = {
-  intake: ['spec'],
-  spec:   ['jira', 'qa', 'design'],
-  jira:   [],
-  qa:     [],
-  design: [],
-}
-
 const EMPTY_OUTPUTS: Record<Tab, string> = { intake: '', spec: '', jira: '', qa: '', design: '' }
 const EMPTY_STATES:  Record<Tab, RunState> = { intake: 'idle', spec: 'idle', jira: 'idle', qa: 'idle', design: 'idle' }
 const EMPTY_ELAPSED: Record<Tab, number | null> = { intake: null, spec: null, jira: null, qa: null, design: null }
 const EMPTY_WARNINGS: Record<Tab, string> = { intake: '', spec: '', jira: '', qa: '', design: '' }
-const EMPTY_STALE:   Record<Tab, boolean> = { intake: false, spec: false, jira: false, qa: false, design: false }
+const EMPTY_SIGNATURES: Record<Tab, string> = { intake: '', spec: '', jira: '', qa: '', design: '' }
 
 const SESSION_KEY = 'ai-spec-pipeline-session'
 
@@ -42,6 +33,21 @@ function sanitizeRunStates(rs: Record<Tab, RunState>): Record<Tab, RunState> {
   const next = { ...rs }
   for (const tab of TABS) if (next[tab] === 'running') next[tab] = 'idle'
   return next
+}
+
+function normalizeStageInput(text: string): string {
+  return text.replace(/\r\n/g, '\n').trim()
+}
+
+function hashString(text: string): string {
+  let hash = 2166136261
+
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+
+  return (hash >>> 0).toString(16).padStart(8, '0')
 }
 
 function extractSpecSections(spec: string, headings: string[]): string {
@@ -68,6 +74,32 @@ interface Context {
   outputs: Record<Tab, string>
 }
 
+function buildStageInputSignatures(ctx: Context): Record<Tab, string> {
+  return {
+    intake: hashString(normalizeStageInput(STAGE_INPUT.intake(ctx))),
+    spec:   hashString(normalizeStageInput(STAGE_INPUT.spec(ctx))),
+    jira:   hashString(normalizeStageInput(STAGE_INPUT.jira(ctx))),
+    qa:     hashString(normalizeStageInput(STAGE_INPUT.qa(ctx))),
+    design: hashString(normalizeStageInput(STAGE_INPUT.design(ctx))),
+  }
+}
+
+function buildStaleFlags(
+  runStates: Record<Tab, RunState>,
+  currentInputSignatures: Record<Tab, string>,
+  completedInputSignatures: Record<Tab, string>,
+): Record<Tab, boolean> {
+  const hasCompletedSignature = (tab: Tab) => completedInputSignatures[tab] !== ''
+
+  return {
+    intake: runStates.intake === 'done' && hasCompletedSignature('intake') && currentInputSignatures.intake !== completedInputSignatures.intake,
+    spec:   runStates.spec === 'done' && hasCompletedSignature('spec') && currentInputSignatures.spec !== completedInputSignatures.spec,
+    jira:   runStates.jira === 'done' && hasCompletedSignature('jira') && currentInputSignatures.jira !== completedInputSignatures.jira,
+    qa:     runStates.qa === 'done' && hasCompletedSignature('qa') && currentInputSignatures.qa !== completedInputSignatures.qa,
+    design: runStates.design === 'done' && hasCompletedSignature('design') && currentInputSignatures.design !== completedInputSignatures.design,
+  }
+}
+
 export default function App() {
   const [input, setInput]       = useState<string>(_saved?.input ?? '')
   const [outputs, setOutputs]   = useState<Record<Tab, string>>({ ...EMPTY_OUTPUTS, ..._saved?.outputs })
@@ -77,11 +109,17 @@ export default function App() {
   const [errors, setErrors]     = useState<Record<Tab, string>>({ ...EMPTY_WARNINGS })
   const [warnings, setWarnings] = useState<Record<Tab, string>>({ ...EMPTY_WARNINGS, ..._saved?.warnings })
   const [elapsed, setElapsed]   = useState<Record<Tab, number | null>>({ ...EMPTY_ELAPSED, ..._saved?.elapsed })
-  const [stale, setStale]       = useState<Record<Tab, boolean>>(EMPTY_STALE)
+  const [completedInputSignatures, setCompletedInputSignatures] = useState<Record<Tab, string>>(
+    { ...EMPTY_SIGNATURES, ..._saved?.completedInputSignatures }
+  )
   const [policy, setPolicy]     = useState<string | null>(null)
   const [policyOpen, setPolicyOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+
+  const stageContext = { input, outputs }
+  const currentInputSignatures = buildStageInputSignatures(stageContext)
+  const stale = buildStaleFlags(runStates, currentInputSignatures, completedInputSignatures)
 
   // Auto-save session to localStorage
   useEffect(() => {
@@ -91,9 +129,10 @@ export default function App() {
       runStates: sanitizeRunStates(runStates),
       elapsed,
       warnings,
+      completedInputSignatures,
     }
     localStorage.setItem(SESSION_KEY, JSON.stringify(data))
-  }, [input, outputs, runStates, elapsed, warnings])
+  }, [input, outputs, runStates, elapsed, warnings, completedInputSignatures])
 
   async function handlePolicyOpen() {
     if (!policy) {
@@ -112,7 +151,8 @@ export default function App() {
   }
 
   async function handleRun(tab: Tab) {
-    const inputText = STAGE_INPUT[tab]({ input, outputs })
+    const inputText = STAGE_INPUT[tab](stageContext)
+    const inputSignature = currentInputSignatures[tab]
     if (!inputText.trim()) {
       setStageError(tab, '입력 내용이 없습니다.')
       setTimeout(() => setStageError(tab, ''), 3000)
@@ -123,13 +163,12 @@ export default function App() {
     setStageError(tab, '')
     setWarnings(prev => ({ ...prev, [tab]: '' }))
     setElapsed(prev => ({ ...prev, [tab]: null }))
-    setStale(prev => ({ ...prev, [tab]: false }))
 
     const startedAt = Date.now()
 
     try {
       const result = await streamStage(tab, inputText, outputs, (accumulated) => {
-        flushSync(() => {
+        startTransition(() => {
           setOutputs(prev => ({ ...prev, [tab]: accumulated }))
         })
       })
@@ -138,14 +177,8 @@ export default function App() {
       setOutputs(prev => ({ ...prev, [tab]: result.output }))
       setElapsed(prev => ({ ...prev, [tab]: elapsedSec }))
       setStageState(tab, 'done')
+      setCompletedInputSignatures(prev => ({ ...prev, [tab]: inputSignature }))
       if (result.warning) setWarnings(prev => ({ ...prev, [tab]: result.warning! }))
-
-      // Mark downstream stages stale
-      setStale(prev => {
-        const next = { ...prev, [tab]: false }
-        for (const ds of DOWNSTREAM[tab]) next[ds] = true
-        return next
-      })
     } catch (e) {
       setStageError(tab, e instanceof Error ? e.message : '오류 발생')
       setStageState(tab, 'failed')
@@ -163,30 +196,33 @@ export default function App() {
     setErrors({ ...EMPTY_WARNINGS })
     setWarnings({ ...EMPTY_WARNINGS })
     setElapsed({ ...EMPTY_ELAPSED })
-    setStale({ ...EMPTY_STALE })
+    setCompletedInputSignatures({ ...EMPTY_SIGNATURES })
     localStorage.removeItem(SESSION_KEY)
   }
 
   function handleRestore(inputText: string, restoredOutputs: Partial<Record<Tab, string>>) {
+    const nextOutputs = { ...outputs, ...restoredOutputs }
+    const restoredContext = { input: inputText, outputs: nextOutputs }
+    const restoredSignatures = buildStageInputSignatures(restoredContext)
+
     setInput(inputText)
-    setOutputs(prev => ({ ...prev, ...restoredOutputs }))
+    setOutputs(nextOutputs)
     setRunStates(prev => {
       const next = { ...prev }
       for (const tab of Object.keys(restoredOutputs) as Tab[]) next[tab] = 'done'
       return next
     })
     setElapsed({ ...EMPTY_ELAPSED })
-    setStale({ ...EMPTY_STALE })
+    setCompletedInputSignatures(prev => {
+      const next = { ...prev }
+      for (const tab of Object.keys(restoredOutputs) as Tab[]) next[tab] = restoredSignatures[tab]
+      return next
+    })
   }
 
   function handleOutputChange(tab: Tab, val: string) {
     setOutputs(prev => ({ ...prev, [tab]: val }))
-    // Mark downstream stale when user manually edits
-    setStale(prev => {
-      const next = { ...prev }
-      for (const ds of DOWNSTREAM[tab]) next[ds] = true
-      return next
-    })
+    setWarnings(prev => ({ ...prev, [tab]: '' }))
   }
 
   const anyError = Object.values(errors).find(Boolean)

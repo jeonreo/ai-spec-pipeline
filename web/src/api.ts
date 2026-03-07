@@ -12,6 +12,8 @@ export interface StreamResult {
   warning?: string
 }
 
+const STREAM_UPDATE_INTERVAL_MS = 75
+
 export async function streamStage(
   profile: string,
   inputText: string,
@@ -29,6 +31,23 @@ export async function streamStage(
   const decoder = new TextDecoder()
   let sseBuffer = ''
   let accumulated = ''
+  let flushTimer: number | null = null
+
+  const flushAccumulated = () => {
+    if (flushTimer !== null) {
+      window.clearTimeout(flushTimer)
+      flushTimer = null
+    }
+    onChunk(accumulated)
+  }
+
+  const scheduleFlush = () => {
+    if (flushTimer !== null) return
+    flushTimer = window.setTimeout(() => {
+      flushTimer = null
+      onChunk(accumulated)
+    }, STREAM_UPDATE_INTERVAL_MS)
+  }
 
   while (true) {
     const { done, value } = await reader.read()
@@ -41,13 +60,17 @@ export async function streamStage(
     for (const event of events) {
       if (!event.startsWith('data: ')) continue
       const data = JSON.parse(event.slice(6))
-      if (data.done) return { output: data.output, warning: data.warning ?? undefined }
+      if (data.done) {
+        flushAccumulated()
+        return { output: data.output, warning: data.warning ?? undefined }
+      }
       if (data.chunk) {
         accumulated += data.chunk
-        onChunk(accumulated)
+        scheduleFlush()
       }
     }
   }
+  flushAccumulated()
   return { output: accumulated }
 }
 
@@ -82,6 +105,11 @@ export async function fetchHistoryDetail(id: string): Promise<HistoryDetail> {
   const res = await fetch(`/api/history/${id}`)
   if (!res.ok) throw new Error(`서버 오류: ${res.status}`)
   return res.json()
+}
+
+export async function deleteHistoryItem(id: string): Promise<void> {
+  const res = await fetch(`/api/history/${id}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`?쒕쾭 ?ㅻ쪟: ${res.status}`)
 }
 
 export async function fetchPolicy(): Promise<string> {
