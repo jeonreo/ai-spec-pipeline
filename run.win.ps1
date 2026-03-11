@@ -89,14 +89,27 @@ if ($useVertex) {
 }
 Write-Host ""
 
-# --- Jira API Token 체크 ---
-$jiraToken = $null
-$jiraBaseUrl = $null
-$jiraEmail = $null
+# --- Jira API Token 체크 (.env 파일 → 환경변수 순으로 확인) ---
+$envFilePath = "$root\.env"
+
+# .env 파일 파싱 함수
+function Get-EnvValue($path, $key) {
+    if (-not (Test-Path $path)) { return $null }
+    foreach ($line in Get-Content $path) {
+        if ($line -match "^\s*$key\s*=\s*(.+)$") { return $Matches[1].Trim() }
+    }
+    return $null
+}
+
+# .env → 세션 env var → appsettings 순서로 토큰 확인
+$jiraToken = Get-EnvValue $envFilePath "Jira__ApiToken"
+if ([string]::IsNullOrWhiteSpace($jiraToken)) { $jiraToken = $env:Jira__ApiToken }
+
+# appsettings에서 BaseUrl/Email 읽기 (표시용)
+$jiraBaseUrl = $null; $jiraEmail = $null
 if (Test-Path $appSettingsPath) {
     try {
         $cfg = Get-Content $appSettingsPath -Raw | ConvertFrom-Json
-        $jiraToken   = $cfg.Jira.ApiToken
         $jiraBaseUrl = $cfg.Jira.BaseUrl
         $jiraEmail   = $cfg.Jira.Email
     } catch {}
@@ -112,18 +125,23 @@ if ([string]::IsNullOrWhiteSpace($jiraToken)) {
     $inputToken = Read-Host "  Enter API Token (press Enter to skip)"
 
     if (-not [string]::IsNullOrWhiteSpace($inputToken)) {
-        try {
-            $cfgRaw = Get-Content $appSettingsPath -Raw | ConvertFrom-Json
-            $cfgRaw.Jira.ApiToken = $inputToken.Trim()
-            $cfgRaw | ConvertTo-Json -Depth 10 | Set-Content $appSettingsPath -Encoding UTF8
-            Write-Host "[ OK ] Jira API Token saved." -ForegroundColor Green
-        } catch {
-            Write-Host "[FAIL] Failed to save appsettings.json: $_" -ForegroundColor Red
+        $inputToken = $inputToken.Trim()
+        # .env 파일에 저장 (없으면 생성)
+        $envLine = "Jira__ApiToken=$inputToken"
+        if (Test-Path $envFilePath) {
+            $lines = Get-Content $envFilePath | Where-Object { $_ -notmatch "^\s*Jira__ApiToken\s*=" }
+            ($lines + $envLine) | Set-Content $envFilePath -Encoding UTF8
+        } else {
+            $envLine | Set-Content $envFilePath -Encoding UTF8
         }
+        $env:Jira__ApiToken = $inputToken
+        Write-Host "[ OK ] Jira API Token saved to .env" -ForegroundColor Green
     } else {
         Write-Host "[ -- ] Jira Token skipped (Jira integration will not work)" -ForegroundColor DarkYellow
     }
 } else {
+    # .env에서 읽은 토큰을 현재 세션 env var로 주입 (백엔드 프로세스가 상속)
+    $env:Jira__ApiToken = $jiraToken
     $maskedToken = $jiraToken.Substring(0, [Math]::Min(8, $jiraToken.Length)) + "****"
     Write-Host "[ OK ] $("Jira".PadRight(8)): Token OK ($maskedToken)" -ForegroundColor Green
 }

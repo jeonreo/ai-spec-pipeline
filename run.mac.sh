@@ -2,6 +2,7 @@
 set -e
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 APPSETTINGS="$ROOT/backend/LocalCliRunner.Api/appsettings.json"
+ENV_FILE="$ROOT/.env"
 
 # ─── Colors ───────────────────────────────────────────────────────────
 GREEN='\033[0;32m'; RED='\033[0;31m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
@@ -25,17 +26,30 @@ check_tool() {
   printf "${GREEN}[ OK ]${NC} %-8s %s\n" "$name" "$ver"
 }
 
-# ─── Read appsettings.json ────────────────────────────────────────────
+# ─── .env helper ──────────────────────────────────────────────────────
+get_env_value() {
+  local key=$1
+  [ -f "$ENV_FILE" ] && grep -E "^\s*${key}\s*=" "$ENV_FILE" | tail -1 | sed "s/^\s*${key}\s*=\s*//" | tr -d '\r' || echo ""
+}
+
+set_env_value() {
+  local key=$1 val=$2
+  if [ -f "$ENV_FILE" ] && grep -qE "^\s*${key}\s*=" "$ENV_FILE"; then
+    sed -i '' "s|^\s*${key}\s*=.*|${key}=${val}|" "$ENV_FILE"
+  else
+    echo "${key}=${val}" >> "$ENV_FILE"
+  fi
+}
+
+# ─── Read appsettings.json (non-secret values only) ───────────────────
 VERTEX_PROJECT_ID=""
-JIRA_TOKEN=""
 JIRA_BASE_URL=""
 JIRA_EMAIL=""
 
 if [ -f "$APPSETTINGS" ] && command -v python3 &>/dev/null; then
-  VERTEX_PROJECT_ID=$(python3 -c "import json,sys; d=json.load(open('$APPSETTINGS')); print(d.get('Vertex',{}).get('ProjectId',''))" 2>/dev/null || echo "")
-  JIRA_TOKEN=$(python3 -c "import json,sys; d=json.load(open('$APPSETTINGS')); print(d.get('Jira',{}).get('ApiToken',''))" 2>/dev/null || echo "")
-  JIRA_BASE_URL=$(python3 -c "import json,sys; d=json.load(open('$APPSETTINGS')); print(d.get('Jira',{}).get('BaseUrl',''))" 2>/dev/null || echo "")
-  JIRA_EMAIL=$(python3 -c "import json,sys; d=json.load(open('$APPSETTINGS')); print(d.get('Jira',{}).get('Email',''))" 2>/dev/null || echo "")
+  VERTEX_PROJECT_ID=$(python3 -c "import json; d=json.load(open('$APPSETTINGS')); print(d.get('Vertex',{}).get('ProjectId',''))" 2>/dev/null || echo "")
+  JIRA_BASE_URL=$(python3 -c "import json; d=json.load(open('$APPSETTINGS')); print(d.get('Jira',{}).get('BaseUrl',''))" 2>/dev/null || echo "")
+  JIRA_EMAIL=$(python3 -c "import json; d=json.load(open('$APPSETTINGS')); print(d.get('Jira',{}).get('Email',''))" 2>/dev/null || echo "")
 fi
 
 # ─── 공통 도구 체크 ───────────────────────────────────────────────────
@@ -58,9 +72,9 @@ if [ -n "$VERTEX_PROJECT_ID" ]; then
   echo "[ .. ] Checking gcloud ADC auth..."
   token=$(gcloud auth application-default print-access-token 2>/dev/null || echo "")
   if [ -z "$token" ]; then
-    echo -e "${YELLOW}[WARN] ADC 인증 없음 — 다음 명령어로 로그인 필요:${NC}"
+    echo -e "${YELLOW}[WARN] ADC credentials not found. Run the following command:${NC}"
     echo "       gcloud auth application-default login"
-    echo "       (실행 후 다시 시작하세요)"
+    echo "       Then restart this script."
     exit 1
   fi
   echo -e "${GREEN}[ OK ] gcloud ADC auth OK${NC}"
@@ -73,41 +87,35 @@ else
   if claude --print "ping" &>/dev/null; then
     echo -e "${GREEN}[ OK ] claude auth OK${NC}"
   else
-    echo -e "${YELLOW}[WARN] Claude 인증이 안 되어 있을 수 있습니다.${NC}"
-    echo "       'claude login' 으로 로그인 후 다시 시도하세요."
+    echo -e "${YELLOW}[WARN] Claude auth may not be configured.${NC}"
+    echo "       Run 'claude login' and try again."
   fi
 fi
 echo ""
 
-# ─── Jira API Token 체크 ─────────────────────────────────────────────
+# ─── Jira API Token 체크 (.env → 환경변수 순) ────────────────────────
+JIRA_TOKEN=$(get_env_value "Jira__ApiToken")
+[ -z "$JIRA_TOKEN" ] && JIRA_TOKEN="${Jira__ApiToken:-}"
+
 if [ -z "$JIRA_TOKEN" ]; then
-  echo -e "${YELLOW}[WARN] Jira API Token이 설정되지 않았습니다.${NC}"
+  echo -e "${YELLOW}[WARN] Jira API Token is not configured.${NC}"
   echo "       BaseUrl : $JIRA_BASE_URL"
   echo "       Email   : $JIRA_EMAIL"
   echo ""
-  echo -e "${CYAN}  Jira API Token 발급: https://id.atlassian.com/manage-profile/security/api-tokens${NC}"
+  echo -e "${CYAN}  Generate token: https://id.atlassian.com/manage-profile/security/api-tokens${NC}"
   echo ""
-  read -rp "  API Token을 입력하세요 (Enter 키로 건너뛰기): " inputToken
+  read -rp "  Enter API Token (press Enter to skip): " inputToken
 
   if [ -n "$inputToken" ]; then
-    if command -v python3 &>/dev/null; then
-      python3 - <<PYEOF
-import json
-path = "$APPSETTINGS"
-with open(path, 'r', encoding='utf-8') as f:
-    cfg = json.load(f)
-cfg['Jira']['ApiToken'] = "$inputToken".strip()
-with open(path, 'w', encoding='utf-8') as f:
-    json.dump(cfg, f, indent=2, ensure_ascii=False)
-PYEOF
-      echo -e "${GREEN}[ OK ] Jira API Token 저장 완료${NC}"
-    else
-      echo -e "${YELLOW}[WARN] python3 없음 — 수동으로 appsettings.json에 입력하세요.${NC}"
-    fi
+    inputToken=$(echo "$inputToken" | tr -d '[:space:]')
+    set_env_value "Jira__ApiToken" "$inputToken"
+    export Jira__ApiToken="$inputToken"
+    echo -e "${GREEN}[ OK ] Jira API Token saved to .env${NC}"
   else
-    echo -e "${YELLOW}[ -- ] Jira Token 건너뜀 (Jira 연동 기능이 동작하지 않을 수 있음)${NC}"
+    echo -e "${YELLOW}[ -- ] Jira Token skipped (Jira integration will not work)${NC}"
   fi
 else
+  export Jira__ApiToken="$JIRA_TOKEN"
   masked="${JIRA_TOKEN:0:8}****"
   printf "${GREEN}[ OK ]${NC} %-8s Token OK (%s)\n" "Jira" "$masked"
 fi
@@ -129,19 +137,19 @@ for port in 5001 5173; do
   fi
 done
 
-# ─── Start servers ────────────────────────────────────────────────────
+# ─── Start servers (env vars inherited by child processes) ────────────
 BACKEND_DIR="$ROOT/backend/LocalCliRunner.Api"
 echo ""
 
 if [[ "$TERM_PROGRAM" == "iTerm.app" ]] || open -Ra "iTerm" 2>/dev/null; then
-  # iTerm2
+  # iTerm2: export Jira__ApiToken so the new tab inherits it
   osascript <<APPL
     tell application "iTerm2"
       tell current window
         set backendTab to (create tab with default profile)
         tell backendTab
           tell current session
-            write text "cd '$BACKEND_DIR' && dotnet run"
+            write text "export Jira__ApiToken='$Jira__ApiToken' && cd '$BACKEND_DIR' && dotnet run"
           end tell
         end tell
         set frontendTab to (create tab with default profile)
@@ -157,7 +165,7 @@ else
   # Terminal.app
   osascript <<APPL
     tell application "Terminal"
-      do script "cd '$BACKEND_DIR' && dotnet run"
+      do script "export Jira__ApiToken='$Jira__ApiToken' && cd '$BACKEND_DIR' && dotnet run"
       do script "cd '$ROOT' && npm run dev"
       activate
     end tell

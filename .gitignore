@@ -15,3 +15,5 @@ backend/LocalCliRunner.Api/appsettings.Development.json
 backend/LocalCliRunner.Api/pipeline-settings.json
 .dotnet/
 .tmp-build/
+
+.env
