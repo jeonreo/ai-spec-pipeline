@@ -12,8 +12,12 @@ builder.Services.AddSingleton<PiiTokenizer>();
 builder.Services.AddSingleton<JiraService>();
 builder.Services.AddSingleton<SettingsService>();
 
-// 스코프/트랜지언트 서비스
-builder.Services.AddScoped<ICliRunner, ClaudeCliRunner>();
+// Runner 선택: Vertex.ProjectId가 설정된 경우 GeminiVertexRunner, 없으면 로컬 ClaudeCliRunner
+var vertexProjectId = builder.Configuration["Vertex:ProjectId"];
+if (!string.IsNullOrWhiteSpace(vertexProjectId))
+    builder.Services.AddScoped<ICliRunner, GeminiVertexRunner>();
+else
+    builder.Services.AddScoped<ICliRunner, ClaudeCliRunner>();
 builder.Services.AddScoped<PromptBuilder>();
 builder.Services.AddScoped<WorkspaceManager>();
 builder.Services.AddScoped<RunStageHandler>();

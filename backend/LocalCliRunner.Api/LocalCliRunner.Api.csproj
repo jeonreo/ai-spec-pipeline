@@ -7,4 +7,8 @@
     <RootNamespace>LocalCliRunner.Api</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Google.Cloud.AIPlatform.V1" Version="3.67.0" />
+  </ItemGroup>
+
 </Project>

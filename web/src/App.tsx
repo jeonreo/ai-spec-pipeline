@@ -1,9 +1,7 @@
 import { useState, useEffect, startTransition } from 'react'
 import { streamStage, fetchPolicy } from './api'
 import SourcePanel from './components/SourcePanel'
-import IntakePanel from './components/IntakePanel'
-import SpecPanel from './components/SpecPanel'
-import OutputPanel from './components/OutputPanel'
+import KanbanBoard from './components/KanbanBoard'
 import HistoryPanel from './components/HistoryPanel'
 import SettingsModal from './components/SettingsModal'
 
@@ -63,7 +61,11 @@ function extractSpecSections(spec: string, headings: string[]): string {
 
 const STAGE_INPUT: Record<Tab, (ctx: Context) => string> = {
   intake: (ctx) => ctx.input,
-  spec:   (ctx) => ctx.outputs.intake,
+  spec:   (ctx) => {
+    const base = ctx.outputs.intake
+    if (!ctx.decisions.trim()) return base
+    return `${base}\n\n---\n## 결정사항\n\n${ctx.decisions}`
+  },
   jira:   (ctx) => ctx.outputs.spec,
   qa:     (ctx) => ctx.outputs.spec,
   design: (ctx) => extractSpecSections(ctx.outputs.spec, ['## 기능 요약', '## UI 구성']),
@@ -72,6 +74,7 @@ const STAGE_INPUT: Record<Tab, (ctx: Context) => string> = {
 interface Context {
   input: string
   outputs: Record<Tab, string>
+  decisions: string
 }
 
 function buildStageInputSignatures(ctx: Context): Record<Tab, string> {
@@ -112,12 +115,17 @@ export default function App() {
   const [completedInputSignatures, setCompletedInputSignatures] = useState<Record<Tab, string>>(
     { ...EMPTY_SIGNATURES, ..._saved?.completedInputSignatures }
   )
+  const [decisions, setDecisions] = useState<string>(_saved?.decisions ?? '')
+  const [decisionsConfirmed, setDecisionsConfirmed] = useState<boolean>(_saved?.decisionsConfirmed ?? false)
+  const [jiraProjectKey, setJiraProjectKey] = useState<string>(_saved?.jiraProjectKey ?? '')
+  const [jiraIssueTypeName, setJiraIssueTypeName] = useState<string>(_saved?.jiraIssueTypeName ?? '')
+  const [projectKnowledge, setProjectKnowledge] = useState<string>(_saved?.projectKnowledge ?? '')
   const [policy, setPolicy]     = useState<string | null>(null)
   const [policyOpen, setPolicyOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
-  const stageContext = { input, outputs }
+  const stageContext: Context = { input, outputs, decisions }
   const currentInputSignatures = buildStageInputSignatures(stageContext)
   const stale = buildStaleFlags(runStates, currentInputSignatures, completedInputSignatures)
 
@@ -130,9 +138,14 @@ export default function App() {
       elapsed,
       warnings,
       completedInputSignatures,
+      decisions,
+      decisionsConfirmed,
+      jiraProjectKey,
+      jiraIssueTypeName,
+      projectKnowledge,
     }
     localStorage.setItem(SESSION_KEY, JSON.stringify(data))
-  }, [input, outputs, runStates, elapsed, warnings, completedInputSignatures])
+  }, [input, outputs, runStates, elapsed, warnings, completedInputSignatures, decisions, decisionsConfirmed, jiraProjectKey, jiraIssueTypeName, projectKnowledge])
 
   async function handlePolicyOpen() {
     if (!policy) {
@@ -150,13 +163,13 @@ export default function App() {
     setErrors(prev => ({ ...prev, [tab]: msg }))
   }
 
-  async function handleRun(tab: Tab) {
-    const inputText = STAGE_INPUT[tab](stageContext)
+  async function handleRun(tab: Tab, inputOverride?: string): Promise<string | null> {
+    const inputText = inputOverride ?? STAGE_INPUT[tab](stageContext)
     const inputSignature = currentInputSignatures[tab]
     if (!inputText.trim()) {
       setStageError(tab, '입력 내용이 없습니다.')
       setTimeout(() => setStageError(tab, ''), 3000)
-      return
+      return null
     }
 
     setStageState(tab, 'running')
@@ -179,10 +192,36 @@ export default function App() {
       setStageState(tab, 'done')
       setCompletedInputSignatures(prev => ({ ...prev, [tab]: inputSignature }))
       if (result.warning) setWarnings(prev => ({ ...prev, [tab]: result.warning! }))
+      return result.output
     } catch (e) {
       setStageError(tab, e instanceof Error ? e.message : '오류 발생')
       setStageState(tab, 'failed')
+      return null
     }
+  }
+
+  async function handleConfirmAndAutoRun() {
+    setDecisionsConfirmed(true)
+    const specInput = STAGE_INPUT.spec(stageContext)
+    const specOutput = await handleRun('spec', specInput)
+    if (!specOutput) return
+    await Promise.all([
+      handleRun('jira',   specOutput),
+      handleRun('qa',     specOutput),
+      handleRun('design', extractSpecSections(specOutput, ['## 기능 요약', '## UI 구성'])),
+    ])
+  }
+
+  async function handleSkipAndAutoRun() {
+    setDecisionsConfirmed(true)
+    const specInput = STAGE_INPUT.spec({ ...stageContext, decisions: '' })
+    const specOutput = await handleRun('spec', specInput)
+    if (!specOutput) return
+    await Promise.all([
+      handleRun('jira',   specOutput),
+      handleRun('qa',     specOutput),
+      handleRun('design', extractSpecSections(specOutput, ['## 기능 요약', '## UI 구성'])),
+    ])
   }
 
   function handleRunParallel() {
@@ -197,6 +236,8 @@ export default function App() {
     setWarnings({ ...EMPTY_WARNINGS })
     setElapsed({ ...EMPTY_ELAPSED })
     setCompletedInputSignatures({ ...EMPTY_SIGNATURES })
+    setDecisions('')
+    setDecisionsConfirmed(false)
     localStorage.removeItem(SESSION_KEY)
   }
 
@@ -232,14 +273,14 @@ export default function App() {
       <header className="app-header">
         <div className="app-header-left">
           <span className="app-title">AI Spec Pipeline</span>
-          <span className="app-pipeline-flow">Source → Decision Spec → Outputs</span>
+          <span className="live-badge"><span className="live-dot" />Live</span>
         </div>
         <div className="header-actions">
           {anyError && <span className="run-error">{anyError}</span>}
-          <button className="btn-policy" onClick={() => setHistoryOpen(true)}>히스토리</button>
-          <button className="btn-policy" onClick={() => setSettingsOpen(true)}>모델 설정</button>
-          <button className="btn-policy" onClick={handlePolicyOpen}>비즈니스 정책</button>
-          <button className="btn-reset" onClick={handleReset}>새 사이클</button>
+          <button className="btn-header" onClick={() => setHistoryOpen(true)}>히스토리</button>
+          <button className="btn-header" onClick={() => setSettingsOpen(true)}>모델 설정</button>
+          <button className="btn-header" onClick={handlePolicyOpen}>비즈니스 정책</button>
+          <button className="btn-new-cycle" onClick={handleReset}>+ New Cycle</button>
         </div>
       </header>
 
@@ -266,45 +307,43 @@ export default function App() {
         </div>
       )}
 
-      <main className="dashboard">
-        <SourcePanel
-          input={input}
-          onInputChange={setInput}
-          onRun={handleRun}
-          runStates={runStates}
-          stale={stale}
-        />
-        <div className="center-column">
-          <IntakePanel
-            content={outputs.intake}
-            onChange={val => handleOutputChange('intake', val)}
-            runState={runStates.intake}
-            elapsed={elapsed.intake}
-            stale={stale.intake}
-            specDone={runStates.spec === 'done'}
-            onRun={() => handleRun('intake')}
-          />
-          <SpecPanel
-            content={outputs.spec}
-            onChange={val => handleOutputChange('spec', val)}
-            runState={runStates.spec}
-            elapsed={elapsed.spec}
-            warning={warnings.spec}
-            stale={stale.spec}
-            specDone={runStates.spec === 'done'}
-            onRun={() => handleRun('spec')}
+      <main className="board-layout">
+        {/* Left sidebar: source input */}
+        <div className="board-sidebar">
+          <SourcePanel
+            input={input}
+            onInputChange={setInput}
+            onRun={handleRun}
+            runStates={runStates}
+            stale={stale}
+            jiraProjectKey={jiraProjectKey}
+            jiraIssueTypeName={jiraIssueTypeName}
+            onJiraConfigChange={(key, type) => { setJiraProjectKey(key); setJiraIssueTypeName(type) }}
+            projectKnowledge={projectKnowledge}
+            onProjectKnowledgeChange={setProjectKnowledge}
+            decisions={decisions}
+            intakeOutput={outputs.intake}
           />
         </div>
-        <OutputPanel
+
+        {/* Main kanban board */}
+        <KanbanBoard
           outputs={outputs}
           runStates={runStates}
           stale={stale}
           elapsed={elapsed}
           warnings={warnings}
           specDone={runStates.spec === 'done'}
+          decisionsConfirmed={decisionsConfirmed}
+          decisions={decisions}
+          jiraProjectKey={jiraProjectKey}
+          jiraIssueTypeName={jiraIssueTypeName}
           onRun={handleRun}
           onRunParallel={handleRunParallel}
           onOutputChange={handleOutputChange}
+          onDecisionsChange={setDecisions}
+          onConfirmAndRun={handleConfirmAndAutoRun}
+          onSkipAndRun={handleSkipAndAutoRun}
         />
       </main>
     </div>

@@ -14,6 +14,8 @@ interface Props {
   content: string
   onChange: (val: string) => void
   specContent?: string
+  initialProjectKey?: string
+  initialIssueTypeName?: string
 }
 
 type FormState = 'loading' | 'ready' | 'loading-types' | 'creating' | 'done' | 'error'
@@ -48,7 +50,7 @@ function parseJiraData(content: string): JiraData | null {
   }
 }
 
-export default function JiraView({ content, onChange, specContent }: Props) {
+export default function JiraView({ content, onChange, specContent, initialProjectKey, initialIssueTypeName }: Props) {
   const [showRaw, setShowRaw] = useState(false)
   const [status, setStatus] = useState<JiraStatus | null>(null)
   const [formState, setFormState] = useState<FormState>('loading')
@@ -84,8 +86,9 @@ export default function JiraView({ content, onChange, specContent }: Props) {
         return
       }
 
-      // 3. 기본 프로젝트 선택
-      const projectKey = list.find(p => p.key === s.defaultProjectKey)?.key ?? list[0]?.key ?? ''
+      // 3. 기본 프로젝트 선택 (사이드바 설정 → appsettings 기본값 순서로 우선)
+      const preferredKey = initialProjectKey || s.defaultProjectKey
+      const projectKey = list.find(p => p.key === preferredKey)?.key ?? list[0]?.key ?? ''
       setSelectedProject(projectKey)
 
       // 4. 이슈 유형 로드 + 기본 유형 선택
@@ -94,8 +97,9 @@ export default function JiraView({ content, onChange, specContent }: Props) {
         try {
           const types = await fetchJiraIssueTypes(projectKey)
           setIssueTypes(types)
+          const preferredType = initialIssueTypeName || s.defaultIssueTypeName
           const defaultType = types.find(
-            t => t.name.toLowerCase() === s.defaultIssueTypeName?.toLowerCase()
+            t => t.name.toLowerCase() === preferredType?.toLowerCase()
           ) ?? types[0]
           setSelectedType(defaultType?.id ?? '')
         } catch (e) {

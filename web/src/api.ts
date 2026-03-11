@@ -215,6 +215,42 @@ export async function pollUntilDone(
   })
 }
 
+// ── Project Knowledge ─────────────────────────────────────────────────────────
+
+export async function consolidateKnowledge(
+  knowledge: string,
+  onChunk: (accumulated: string) => void,
+): Promise<string> {
+  const res = await fetch('/api/knowledge/consolidate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ knowledge }),
+  })
+  if (!res.ok) throw new Error(`서버 오류: ${res.status}`)
+
+  const reader = res.body!.getReader()
+  const decoder = new TextDecoder()
+  let sseBuffer = ''
+  let accumulated = ''
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+
+    sseBuffer += decoder.decode(value, { stream: true })
+    const events = sseBuffer.split('\n\n')
+    sseBuffer = events.pop() ?? ''
+
+    for (const event of events) {
+      if (!event.startsWith('data: ')) continue
+      const data = JSON.parse(event.slice(6))
+      if (data.done) return data.output as string
+      if (data.chunk) { accumulated += data.chunk; onChunk(accumulated) }
+    }
+  }
+  return accumulated
+}
+
 // ── Settings ──────────────────────────────────────────────────────────────────
 
 export interface PipelineSettings {
