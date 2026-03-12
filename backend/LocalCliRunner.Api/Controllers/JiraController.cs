@@ -49,6 +49,24 @@ public class JiraController(JiraService jiraService) : ControllerBase
         }
     }
 
+    // POST /api/jira/{issueKey}/remotelink
+    // 이미 생성된 Jira 티켓에 GitHub 브랜치/PR 링크를 추가한다.
+    [HttpPost("{issueKey}/remotelink")]
+    public async Task<IActionResult> AddRemoteLink(string issueKey, [FromBody] RemoteLinkRequest request)
+    {
+        if (!jiraService.IsConfigured)
+            return BadRequest(new { error = "Jira 연동 설정이 없습니다." });
+        try
+        {
+            await jiraService.AddRemoteLinkAsync(issueKey, request.Url, request.Title);
+            return Ok(new { ok = true });
+        }
+        catch (HttpRequestException ex)
+        {
+            return StatusCode(502, new { error = $"Jira API 오류: {ex.Message}" });
+        }
+    }
+
     // POST /api/jira/create
     [HttpPost("create")]
     public async Task<IActionResult> Create([FromBody] CreateIssueRequest request)
@@ -67,3 +85,5 @@ public class JiraController(JiraService jiraService) : ControllerBase
         }
     }
 }
+
+public record RemoteLinkRequest(string Url, string Title);

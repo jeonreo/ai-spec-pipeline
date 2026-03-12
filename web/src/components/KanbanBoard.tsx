@@ -153,6 +153,7 @@ interface BoardProps {
   onSkipAndRun: () => void
   onPushBranch: () => void
   onCreatePr: () => void
+  onJiraCreated?: (key: string) => void
 }
 
 const ALL_STAGES: Tab[] = ['intake', 'spec', 'jira', 'qa', 'design', 'code-analysis', 'patch']
@@ -162,7 +163,7 @@ export default function KanbanBoard({
   specDone, decisionsConfirmed, decisions, jiraProjectKey, jiraIssueTypeName,
   pushResults, pushCreating, prResults, prCreating,
   onRun, onRunParallel, onOutputChange, onDecisionsChange, onConfirmAndRun, onSkipAndRun,
-  onPushBranch, onCreatePr,
+  onPushBranch, onCreatePr, onJiraCreated,
 }: BoardProps) {
   const [drawerTab, setDrawerTab] = useState<Tab | null>(null)
 
@@ -309,6 +310,7 @@ export default function KanbanBoard({
           onDecisionsChange={onDecisionsChange}
           onConfirmAndRun={onConfirmAndRun}
           onSkipAndRun={onSkipAndRun}
+          onJiraCreated={onJiraCreated}
         />
       )}
     </div>

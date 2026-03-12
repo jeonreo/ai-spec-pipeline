@@ -1,5 +1,5 @@
 import { useState, useEffect, startTransition } from 'react'
-import { streamStage, fetchPolicy, TokenUsage, pushBranch, createPullRequest, PushBranchResult, PrResult } from './api'
+import { streamStage, fetchPolicy, TokenUsage, pushBranch, createPullRequest, addJiraRemoteLink, PushBranchResult, PrResult } from './api'
 import SourcePanel from './components/SourcePanel'
 import KanbanBoard from './components/KanbanBoard'
 import HistoryPanel from './components/HistoryPanel'
@@ -124,6 +124,7 @@ export default function App() {
   const [jiraProjectKey, setJiraProjectKey] = useState<string>(_saved?.jiraProjectKey ?? '')
   const [jiraIssueTypeName, setJiraIssueTypeName] = useState<string>(_saved?.jiraIssueTypeName ?? '')
   const [projectKnowledge, setProjectKnowledge] = useState<string>(_saved?.projectKnowledge ?? '')
+  const [jiraIssueKey, setJiraIssueKey] = useState<string>(_saved?.jiraIssueKey ?? '')
   const [pushResults, setPushResults]   = useState<PushBranchResult[]>(_saved?.pushResults ?? [])
   const [pushCreating, setPushCreating] = useState(false)
   const [prResults, setPrResults]       = useState<PrResult[]>(_saved?.prResults ?? [])
@@ -152,11 +153,12 @@ export default function App() {
       jiraProjectKey,
       jiraIssueTypeName,
       projectKnowledge,
+      jiraIssueKey,
       pushResults,
       prResults,
     }
     localStorage.setItem(SESSION_KEY, JSON.stringify(data))
-  }, [input, outputs, runStates, elapsed, tokens, warnings, completedInputSignatures, decisions, decisionsConfirmed, jiraProjectKey, jiraIssueTypeName, projectKnowledge, pushResults, prResults])
+  }, [input, outputs, runStates, elapsed, tokens, warnings, completedInputSignatures, decisions, decisionsConfirmed, jiraProjectKey, jiraIssueTypeName, projectKnowledge, jiraIssueKey, pushResults, prResults])
 
   async function handlePolicyOpen() {
     if (!policy) {
@@ -242,6 +244,15 @@ export default function App() {
     Promise.all((['jira', 'qa', 'design'] as Tab[]).map(tab => handleRun(tab)))
   }
 
+  function handleJiraCreated(key: string) {
+    setJiraIssueKey(key)
+    // 이미 푸시된 브랜치/PR이 있으면 즉시 링크 추가
+    pushResults.filter(r => r.branchUrl).forEach(r =>
+      addJiraRemoteLink(key, r.branchUrl!, `AI Draft Branch (${r.label.toUpperCase()})`))
+    prResults.filter(r => r.prUrl).forEach(r =>
+      addJiraRemoteLink(key, r.prUrl!, `AI Draft PR (${r.label.toUpperCase()})`))
+  }
+
   async function handlePushBranch() {
     if (!outputs.patch) return
     setPushCreating(true)
@@ -259,6 +270,10 @@ export default function App() {
         analysisSummary: outputs['code-analysis'].slice(0, 500),
       })
       setPushResults(results)
+      if (jiraIssueKey) {
+        results.filter(r => r.branchUrl).forEach(r =>
+          addJiraRemoteLink(jiraIssueKey, r.branchUrl!, `AI Draft Branch (${r.label.toUpperCase()})`))
+      }
     } catch (e) {
       alert(e instanceof Error ? e.message : '브랜치 푸시 실패')
     } finally {
@@ -286,6 +301,10 @@ export default function App() {
         analysisSummary: outputs['code-analysis'].slice(0, 500),
       })
       setPrResults(results)
+      if (jiraIssueKey) {
+        results.filter(r => r.prUrl).forEach(r =>
+          addJiraRemoteLink(jiraIssueKey, r.prUrl!, `AI Draft PR (${r.label.toUpperCase()})`))
+      }
     } catch (e) {
       alert(e instanceof Error ? e.message : 'PR 생성 실패')
     } finally {
@@ -304,6 +323,7 @@ export default function App() {
     setCompletedInputSignatures({ ...EMPTY_SIGNATURES })
     setDecisions('')
     setDecisionsConfirmed(false)
+    setJiraIssueKey('')
     setPushResults([])
     setPrResults([])
     localStorage.removeItem(SESSION_KEY)
@@ -420,6 +440,7 @@ export default function App() {
           onSkipAndRun={handleSkipAndAutoRun}
           onPushBranch={handlePushBranch}
           onCreatePr={handleCreatePr}
+          onJiraCreated={handleJiraCreated}
         />
       </main>
     </div>

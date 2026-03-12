@@ -16,6 +16,7 @@ interface Props {
   specContent?: string
   initialProjectKey?: string
   initialIssueTypeName?: string
+  onCreated?: (key: string) => void
 }
 
 type FormState = 'loading' | 'ready' | 'loading-types' | 'creating' | 'done' | 'error'
@@ -50,7 +51,7 @@ function parseJiraData(content: string): JiraData | null {
   }
 }
 
-export default function JiraView({ content, onChange, specContent, initialProjectKey, initialIssueTypeName }: Props) {
+export default function JiraView({ content, onChange, specContent, initialProjectKey, initialIssueTypeName, onCreated }: Props) {
   const [showRaw, setShowRaw] = useState(false)
   const [status, setStatus] = useState<JiraStatus | null>(null)
   const [formState, setFormState] = useState<FormState>('loading')
@@ -148,6 +149,7 @@ export default function JiraView({ content, onChange, specContent, initialProjec
       })
       setResult(res)
       setFormState('done')
+      onCreated?.(res.key)
     } catch (e) {
       setCreateError(e instanceof Error ? e.message : '티켓 생성 실패')
       setFormState('error')

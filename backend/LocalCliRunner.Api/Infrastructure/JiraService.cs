@@ -145,6 +145,28 @@ public class JiraService
         return issueKey;
     }
 
+    public async Task AddRemoteLinkAsync(string issueKey, string url, string title)
+    {
+        var body = JsonSerializer.Serialize(new
+        {
+            @object = new
+            {
+                url,
+                title,
+                icon = new
+                {
+                    url16x16 = "https://github.com/favicon.ico",
+                    title    = "GitHub",
+                },
+            },
+        }, JsonOpts);
+
+        var content  = new StringContent(body, Encoding.UTF8, "application/json");
+        var endpoint = $"{_config.BaseUrl.TrimEnd('/')}/rest/api/3/issue/{issueKey}/remotelink";
+        var res      = await _http.PostAsync(endpoint, content);
+        res.EnsureSuccessStatusCode();
+    }
+
     private async Task AttachFileAsync(string issueKey, string filename, string text)
     {
         var url = $"{_config.BaseUrl.TrimEnd('/')}/rest/api/3/issue/{issueKey}/attachments";

@@ -21,6 +21,7 @@ interface Props {
   decisionsConfirmed: boolean
   jiraProjectKey: string
   jiraIssueTypeName: string
+  onJiraCreated?: (key: string) => void
 }
 
 const DRAWER_META: Record<Tab, { label: string; icon: string; desc: string }> = {
@@ -184,7 +185,7 @@ export default function CardDetailDrawer({
   tab, runState, output, specOutput, elapsed, warning,
   onOutputChange, onClose, onRun, specDone,
   decisions, onDecisionsChange, onConfirmAndRun, onSkipAndRun, decisionsConfirmed,
-  jiraProjectKey, jiraIssueTypeName,
+  jiraProjectKey, jiraIssueTypeName, onJiraCreated,
 }: Props) {
   const meta    = DRAWER_META[tab]
   const isDone    = runState === 'done'
@@ -235,7 +236,7 @@ export default function CardDetailDrawer({
       </div>
     )
     if (tab === 'spec')            return <SpecContentView content={output} onChange={onOutputChange} />
-    if (tab === 'jira')            return <JiraView content={output} onChange={onOutputChange} specContent={specOutput} initialProjectKey={jiraProjectKey} initialIssueTypeName={jiraIssueTypeName} />
+    if (tab === 'jira')            return <JiraView content={output} onChange={onOutputChange} specContent={specOutput} initialProjectKey={jiraProjectKey} initialIssueTypeName={jiraIssueTypeName} onCreated={onJiraCreated} />
     if (tab === 'qa')              return <textarea className="drawer-textarea" value={output} onChange={e => onOutputChange(e.target.value)} />
     if (tab === 'design')          return <DesignPackageView content={output} onChange={onOutputChange} />
     if (tab === 'code-analysis')   return <SpecContentView content={output} onChange={onOutputChange} />

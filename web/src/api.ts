@@ -152,6 +152,16 @@ export async function fetchJiraIssueTypes(projectKey: string): Promise<JiraIssue
   return res.json()
 }
 
+export async function addJiraRemoteLink(issueKey: string, url: string, title: string): Promise<void> {
+  try {
+    await fetch(`/api/jira/${issueKey}/remotelink`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, title }),
+    })
+  } catch { /* non-blocking */ }
+}
+
 export async function createJiraTicket(payload: {
   projectKey: string
   summary: string
