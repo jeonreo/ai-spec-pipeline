@@ -89,8 +89,8 @@ public class RunStageHandler(
                 """;
             await File.WriteAllTextAsync(layout.MetaFile, meta);
 
-            job.OutputContent = restoredOutput;
-            job.Status        = result.ExitCode == 0 ? JobStatus.Done : JobStatus.Failed;
+            // 출력은 파일에 저장됐으므로 메모리에 보관하지 않는다.
+            job.Status = result.ExitCode == 0 ? JobStatus.Done : JobStatus.Failed;
 
             if (result.ExitCode != 0)
                 job.Error = $"CLI exited with code {result.ExitCode}. stderr: {result.Stderr[..Math.Min(500, result.Stderr.Length)]}";

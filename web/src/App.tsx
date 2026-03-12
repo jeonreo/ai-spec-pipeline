@@ -1,4 +1,4 @@
-import { useState, useEffect, startTransition } from 'react'
+import { useState, useEffect, useRef, startTransition } from 'react'
 import { streamStage, fetchPolicy, TokenUsage, pushBranch, createPullRequest, addJiraRemoteLink, PushBranchResult, PrResult } from './api'
 import SourcePanel from './components/SourcePanel'
 import KanbanBoard from './components/KanbanBoard'
@@ -138,26 +138,40 @@ export default function App() {
   const currentInputSignatures = buildStageInputSignatures(stageContext)
   const stale = buildStaleFlags(runStates, currentInputSignatures, completedInputSignatures)
 
-  // Auto-save session to localStorage
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Auto-save session to localStorage (500ms debounce, 출력 100KB 초과 시 저장 생략)
   useEffect(() => {
-    const data = {
-      input,
-      outputs,
-      runStates: sanitizeRunStates(runStates),
-      elapsed,
-      tokens,
-      warnings,
-      completedInputSignatures,
-      decisions,
-      decisionsConfirmed,
-      jiraProjectKey,
-      jiraIssueTypeName,
-      projectKnowledge,
-      jiraIssueKey,
-      pushResults,
-      prResults,
-    }
-    localStorage.setItem(SESSION_KEY, JSON.stringify(data))
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => {
+      const MAX_OUTPUT_BYTES = 100_000
+      const trimmedOutputs = Object.fromEntries(
+        Object.entries(outputs).map(([k, v]) => [k, v.length > MAX_OUTPUT_BYTES ? '' : v])
+      ) as Record<Tab, string>
+      const data = {
+        input,
+        outputs: trimmedOutputs,
+        runStates: sanitizeRunStates(runStates),
+        elapsed,
+        tokens,
+        warnings,
+        completedInputSignatures,
+        decisions,
+        decisionsConfirmed,
+        jiraProjectKey,
+        jiraIssueTypeName,
+        projectKnowledge,
+        jiraIssueKey,
+        pushResults,
+        prResults,
+      }
+      try {
+        localStorage.setItem(SESSION_KEY, JSON.stringify(data))
+      } catch {
+        // QuotaExceededError 등 무시
+      }
+    }, 500)
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
   }, [input, outputs, runStates, elapsed, tokens, warnings, completedInputSignatures, decisions, decisionsConfirmed, jiraProjectKey, jiraIssueTypeName, projectKnowledge, jiraIssueKey, pushResults, prResults])
 
   async function handlePolicyOpen() {

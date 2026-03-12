@@ -25,6 +25,16 @@ public class WorkspaceManager(IConfiguration config)
                         .OrderByDescending(d => d);
     }
 
+    /// <summary>
+    /// id로 workspace 디렉토리를 직접 조회 (전체 스캔 없이).
+    /// </summary>
+    public string? GetById(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id) || Path.GetFileName(id) != id) return null;
+        var target = Path.GetFullPath(Path.Combine(LocalRoot, id));
+        return Directory.Exists(target) ? target : null;
+    }
+
     public bool Delete(string id)
     {
         if (string.IsNullOrWhiteSpace(id)) return false;

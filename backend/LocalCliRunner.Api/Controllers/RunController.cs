@@ -56,10 +56,20 @@ public class RunController(
 
     // GET /api/run/{jobId}
     [HttpGet("{jobId}")]
-    public IActionResult GetJob(string jobId)
+    public async Task<IActionResult> GetJob(string jobId)
     {
         var job = registry.Get(jobId);
         if (job is null) return NotFound();
+
+        // OutputContent는 메모리 절약을 위해 보관하지 않음 — 완료된 경우 파일에서 읽는다.
+        string? outputContent = null;
+        if (job.Status == Domain.JobStatus.Done && job.OutputFile is not null)
+        {
+            var layout  = new WorkspaceLayout(job.WorkspacePath);
+            var outPath = layout.OutputFile(job.OutputFile);
+            if (System.IO.File.Exists(outPath))
+                outputContent = await System.IO.File.ReadAllTextAsync(outPath);
+        }
 
         return Ok(new
         {
@@ -67,8 +77,8 @@ public class RunController(
             status        = job.Status.ToString().ToLower(),
             workspacePath = job.WorkspacePath,
             outputFile    = job.OutputFile,
-            outputContent = job.OutputContent,
-            preview       = job.OutputContent?[..Math.Min(2000, job.OutputContent.Length)],
+            outputContent,
+            preview       = outputContent?[..Math.Min(2000, outputContent.Length)],
             error         = job.Error,
         });
     }
@@ -361,7 +371,7 @@ public class HistoryController(WorkspaceManager workspaceManager) : ControllerBa
     [HttpGet("{id}")]
     public async Task<IActionResult> Get(string id)
     {
-        var dir = workspaceManager.ListAll().FirstOrDefault(d => Path.GetFileName(d) == id);
+        var dir = workspaceManager.GetById(id);
         if (dir is null) return NotFound();
 
         var inputFile = Path.Combine(dir, "input.txt");
