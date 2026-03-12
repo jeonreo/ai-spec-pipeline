@@ -155,17 +155,38 @@ if ([string]::IsNullOrWhiteSpace($jiraToken)) {
     $env:Jira__ApiToken = $jiraToken
     $maskedToken = $jiraToken.Substring(0, [Math]::Min(8, $jiraToken.Length)) + "****"
     Write-Host "[ OK ] $("Jira".PadRight(8)): Token OK ($maskedToken)" -ForegroundColor Green
+}
 
-    # GitHub token도 .env에서 주입
-    $githubToken = Get-EnvValue $envFilePath "GitHub__Token"
-    if ([string]::IsNullOrWhiteSpace($githubToken)) { $githubToken = $env:GitHub__Token }
-    if (-not [string]::IsNullOrWhiteSpace($githubToken)) {
-        $env:GitHub__Token = $githubToken
-        $maskedGh = $githubToken.Substring(0, [Math]::Min(8, $githubToken.Length)) + "****"
-        Write-Host "[ OK ] $("GitHub".PadRight(8)): Token OK ($maskedGh)" -ForegroundColor Green
+# --- GitHub Token 체크 (Jira 토큰 여부와 무관하게 항상 실행) ---
+$githubToken = Get-EnvValue $envFilePath "GitHub__Token"
+if ([string]::IsNullOrWhiteSpace($githubToken)) { $githubToken = $env:GitHub__Token }
+
+if ([string]::IsNullOrWhiteSpace($githubToken)) {
+    Write-Host "[WARN] GitHub Token is not configured." -ForegroundColor Yellow
+    Write-Host "       Code Agent / PR Draft 기능이 비활성화됩니다."
+    Write-Host ""
+    Write-Host "  Generate token: https://github.com/settings/tokens  (repo 스코프 필요)" -ForegroundColor Cyan
+    Write-Host ""
+    $inputGhToken = Read-Host "  Enter GitHub Token (press Enter to skip)"
+
+    if (-not [string]::IsNullOrWhiteSpace($inputGhToken)) {
+        $inputGhToken = $inputGhToken.Trim()
+        $ghLine = "GitHub__Token=$inputGhToken"
+        if (Test-Path $envFilePath) {
+            $lines = Get-Content $envFilePath | Where-Object { $_ -notmatch "^\s*GitHub__Token\s*=" }
+            ($lines + $ghLine) | Set-Content $envFilePath -Encoding UTF8
+        } else {
+            $ghLine | Set-Content $envFilePath -Encoding UTF8
+        }
+        $env:GitHub__Token = $inputGhToken
+        Write-Host "[ OK ] GitHub Token saved to .env" -ForegroundColor Green
     } else {
-        Write-Host "[ -- ] $("GitHub".PadRight(8)): Token not set (Code Agent / PR Draft 비활성)" -ForegroundColor DarkYellow
+        Write-Host "[ -- ] GitHub Token skipped (Code Agent / PR Draft 비활성)" -ForegroundColor DarkYellow
     }
+} else {
+    $env:GitHub__Token = $githubToken
+    $maskedGh = $githubToken.Substring(0, [Math]::Min(8, $githubToken.Length)) + "****"
+    Write-Host "[ OK ] $("GitHub".PadRight(8)): Token OK ($maskedGh)" -ForegroundColor Green
 }
 Write-Host ""
 
