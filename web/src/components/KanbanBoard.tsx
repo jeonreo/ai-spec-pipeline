@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Tab, RunState } from '../App'
-import { TokenUsage, PrResult } from '../api'
+import { TokenUsage, PushBranchResult, PrResult } from '../api'
 import CardDetailDrawer from './CardDetailDrawer'
 
 // ── Types ───────────────────────────────────────────────────────
@@ -141,6 +141,8 @@ interface BoardProps {
   decisions: string
   jiraProjectKey: string
   jiraIssueTypeName: string
+  pushResults: PushBranchResult[]
+  pushCreating: boolean
   prResults: PrResult[]
   prCreating: boolean
   onRun: (tab: Tab) => void
@@ -149,6 +151,7 @@ interface BoardProps {
   onDecisionsChange: (v: string) => void
   onConfirmAndRun: () => void
   onSkipAndRun: () => void
+  onPushBranch: () => void
   onCreatePr: () => void
 }
 
@@ -157,9 +160,9 @@ const ALL_STAGES: Tab[] = ['intake', 'spec', 'jira', 'qa', 'design', 'code-analy
 export default function KanbanBoard({
   outputs, runStates, stale, elapsed, tokens, warnings,
   specDone, decisionsConfirmed, decisions, jiraProjectKey, jiraIssueTypeName,
-  prResults, prCreating,
+  pushResults, pushCreating, prResults, prCreating,
   onRun, onRunParallel, onOutputChange, onDecisionsChange, onConfirmAndRun, onSkipAndRun,
-  onCreatePr,
+  onPushBranch, onCreatePr,
 }: BoardProps) {
   const [drawerTab, setDrawerTab] = useState<Tab | null>(null)
 
@@ -238,6 +241,7 @@ export default function KanbanBoard({
           </div>
           <div className="pr-agent-bar-right">
             {prResults.length > 0 ? (
+              /* Step 3: PR URLs */
               <div className="pr-results">
                 {prResults.map(r => r.prUrl ? (
                   <a key={r.label} className="btn-pr-url" href={r.prUrl} target="_blank" rel="noreferrer">
@@ -249,13 +253,36 @@ export default function KanbanBoard({
                   </span>
                 ))}
               </div>
+            ) : pushResults.length > 0 ? (
+              /* Step 2: Branch links + Create PR button */
+              <div className="pr-push-done">
+                <div className="pr-branch-links">
+                  {pushResults.map(r => r.branchUrl ? (
+                    <a key={r.label} className="btn-branch-url" href={r.branchUrl} target="_blank" rel="noreferrer">
+                      {r.label.toUpperCase()} 브랜치 ↗
+                    </a>
+                  ) : (
+                    <span key={r.label} className="pr-result-error" title={r.error}>
+                      {r.label.toUpperCase()} 실패
+                    </span>
+                  ))}
+                </div>
+                <button
+                  className={`btn-create-pr${prCreating ? ' btn-create-pr--loading' : ''}`}
+                  onClick={onCreatePr}
+                  disabled={prCreating || pushResults.every(r => !r.branchName)}
+                >
+                  {prCreating ? '생성 중...' : 'Draft PR 생성'}
+                </button>
+              </div>
             ) : (
+              /* Step 1: Push branch button */
               <button
-                className={`btn-create-pr${prCreating ? ' btn-create-pr--loading' : ''}`}
-                onClick={onCreatePr}
-                disabled={prCreating}
+                className={`btn-create-pr${pushCreating ? ' btn-create-pr--loading' : ''}`}
+                onClick={onPushBranch}
+                disabled={pushCreating}
               >
-                {prCreating ? '생성 중...' : 'Create PR Draft'}
+                {pushCreating ? '푸시 중...' : '브랜치 푸시'}
               </button>
             )}
           </div>

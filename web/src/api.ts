@@ -218,11 +218,30 @@ export interface GitHubRepoStatus {
   error?: string
 }
 
-export interface CreatePrPayload {
-  title: string
-  patches: { repo?: string; path: string; content: string; comment?: string }[]
+type PatchItem = { repo?: string; path: string; content: string; comment?: string }
+
+export interface PushBranchPayload {
+  title?: string
+  patches: PatchItem[]
   specSummary?: string
   analysisSummary?: string
+}
+
+export interface PushBranchResult {
+  label: string
+  branchName?: string
+  branchUrl?: string
+  filesCommitted?: number
+  error?: string
+}
+
+export interface CreatePrPayload {
+  branchName: string
+  title?: string
+  repos?: string[]
+  specSummary?: string
+  analysisSummary?: string
+  patches?: PatchItem[]
 }
 
 export interface PrResult {
@@ -235,6 +254,17 @@ export async function fetchGithubStatus(): Promise<GitHubRepoStatus[]> {
   const res = await fetch('/api/github/status')
   if (!res.ok) throw new Error(`서버 오류: ${res.status}`)
   return res.json()
+}
+
+export async function pushBranch(payload: PushBranchPayload): Promise<{ results: PushBranchResult[] }> {
+  const res = await fetch('/api/github/push', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error ?? `서버 오류: ${res.status}`)
+  return data
 }
 
 export async function createPullRequest(payload: CreatePrPayload): Promise<{ results: PrResult[] }> {

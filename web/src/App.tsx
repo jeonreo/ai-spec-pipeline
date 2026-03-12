@@ -1,5 +1,5 @@
 import { useState, useEffect, startTransition } from 'react'
-import { streamStage, fetchPolicy, TokenUsage, createPullRequest, PrResult } from './api'
+import { streamStage, fetchPolicy, TokenUsage, pushBranch, createPullRequest, PushBranchResult, PrResult } from './api'
 import SourcePanel from './components/SourcePanel'
 import KanbanBoard from './components/KanbanBoard'
 import HistoryPanel from './components/HistoryPanel'
@@ -124,8 +124,10 @@ export default function App() {
   const [jiraProjectKey, setJiraProjectKey] = useState<string>(_saved?.jiraProjectKey ?? '')
   const [jiraIssueTypeName, setJiraIssueTypeName] = useState<string>(_saved?.jiraIssueTypeName ?? '')
   const [projectKnowledge, setProjectKnowledge] = useState<string>(_saved?.projectKnowledge ?? '')
-  const [prResults, setPrResults]   = useState<PrResult[]>(_saved?.prResults ?? [])
-  const [prCreating, setPrCreating] = useState(false)
+  const [pushResults, setPushResults]   = useState<PushBranchResult[]>(_saved?.pushResults ?? [])
+  const [pushCreating, setPushCreating] = useState(false)
+  const [prResults, setPrResults]       = useState<PrResult[]>(_saved?.prResults ?? [])
+  const [prCreating, setPrCreating]     = useState(false)
   const [policy, setPolicy]     = useState<string | null>(null)
   const [policyOpen, setPolicyOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -150,10 +152,11 @@ export default function App() {
       jiraProjectKey,
       jiraIssueTypeName,
       projectKnowledge,
+      pushResults,
       prResults,
     }
     localStorage.setItem(SESSION_KEY, JSON.stringify(data))
-  }, [input, outputs, runStates, elapsed, tokens, warnings, completedInputSignatures, decisions, decisionsConfirmed, jiraProjectKey, jiraIssueTypeName, projectKnowledge, prResults])
+  }, [input, outputs, runStates, elapsed, tokens, warnings, completedInputSignatures, decisions, decisionsConfirmed, jiraProjectKey, jiraIssueTypeName, projectKnowledge, pushResults, prResults])
 
   async function handlePolicyOpen() {
     if (!policy) {
@@ -180,6 +183,7 @@ export default function App() {
       return null
     }
 
+    if (tab === 'patch') { setPushResults([]); setPrResults([]) }
     setStageState(tab, 'running')
     setStageError(tab, '')
     setWarnings(prev => ({ ...prev, [tab]: '' }))
@@ -238,8 +242,34 @@ export default function App() {
     Promise.all((['jira', 'qa', 'design'] as Tab[]).map(tab => handleRun(tab)))
   }
 
-  async function handleCreatePr() {
+  async function handlePushBranch() {
     if (!outputs.patch) return
+    setPushCreating(true)
+    setPushResults([])
+    setPrResults([])
+    try {
+      const patches = JSON.parse(outputs.patch) as { repo?: string; path: string; content: string; comment?: string }[]
+      const specLines = outputs.spec.split('\n')
+      const title = specLines.find(l => l.startsWith('# '))?.slice(2).trim() ?? 'AI Draft: 코드 변경 제안'
+
+      const { results } = await pushBranch({
+        title: `[AI Draft] ${title}`,
+        patches,
+        specSummary: specLines.slice(0, 10).join('\n'),
+        analysisSummary: outputs['code-analysis'].slice(0, 500),
+      })
+      setPushResults(results)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '브랜치 푸시 실패')
+    } finally {
+      setPushCreating(false)
+    }
+  }
+
+  async function handleCreatePr() {
+    const successPush = pushResults.filter(r => r.branchName)
+    if (successPush.length === 0) return
+    const branchName = successPush[0].branchName!
     setPrCreating(true)
     setPrResults([])
     try {
@@ -248,7 +278,9 @@ export default function App() {
       const title = specLines.find(l => l.startsWith('# '))?.slice(2).trim() ?? 'AI Draft: 코드 변경 제안'
 
       const { results } = await createPullRequest({
+        branchName,
         title: `[AI Draft] ${title}`,
+        repos: successPush.map(r => r.label),
         patches,
         specSummary: specLines.slice(0, 10).join('\n'),
         analysisSummary: outputs['code-analysis'].slice(0, 500),
@@ -272,6 +304,7 @@ export default function App() {
     setCompletedInputSignatures({ ...EMPTY_SIGNATURES })
     setDecisions('')
     setDecisionsConfirmed(false)
+    setPushResults([])
     setPrResults([])
     localStorage.removeItem(SESSION_KEY)
   }
@@ -375,6 +408,8 @@ export default function App() {
           decisions={decisions}
           jiraProjectKey={jiraProjectKey}
           jiraIssueTypeName={jiraIssueTypeName}
+          pushResults={pushResults}
+          pushCreating={pushCreating}
           prResults={prResults}
           prCreating={prCreating}
           onRun={handleRun}
@@ -383,6 +418,7 @@ export default function App() {
           onDecisionsChange={setDecisions}
           onConfirmAndRun={handleConfirmAndAutoRun}
           onSkipAndRun={handleSkipAndAutoRun}
+          onPushBranch={handlePushBranch}
           onCreatePr={handleCreatePr}
         />
       </main>

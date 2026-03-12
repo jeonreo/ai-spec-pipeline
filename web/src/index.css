@@ -1942,6 +1942,22 @@ body {
 }
 .btn-pr-url:hover { background: var(--success); color: #fff; }
 
+.pr-push-done { display: flex; align-items: center; gap: 10px; }
+.pr-branch-links { display: flex; gap: 8px; }
+.btn-branch-url {
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(99,102,241,0.12);
+  color: var(--accent);
+  border: 1px solid rgba(99,102,241,0.3);
+  border-radius: 6px;
+  text-decoration: none;
+  display: inline-block;
+  transition: background 0.15s;
+}
+.btn-branch-url:hover { background: var(--accent); color: #fff; }
+
 /* ── Patch View ───────────────────────────────────────────────── */
 .patch-view { display: flex; flex-direction: column; gap: 16px; padding: 4px 0; }
 .patch-summary {
