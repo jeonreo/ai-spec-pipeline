@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using System.Text.Json;
 
 namespace LocalCliRunner.Api.Infrastructure;
 
@@ -61,10 +62,11 @@ public class ClaudeCliRunner(IConfiguration config, ILogger<ClaudeCliRunner> log
         return new CliResult(process.ExitCode, stdoutSb.ToString().TrimEnd(), stderrSb.ToString().TrimEnd());
     }
 
-    public async Task StreamAsync(string promptContent, string workspacePath, Func<string, Task> onChunk, string? model = null, CancellationToken ct = default)
+    public async Task<TokenUsage?> StreamAsync(string promptContent, string workspacePath, Func<string, Task> onChunk, string? model = null, CancellationToken ct = default)
     {
         var command    = config["Cli:Command"] ?? "claude";
-        var args       = BuildArgs(model);
+        var effectiveModel = model ?? config["Cli:DefaultModel"] ?? "claude-haiku-4-5-20251001";
+        var args       = $"-p --model {effectiveModel} -";
         var timeoutSec = int.TryParse(config["Cli:TimeoutSeconds"], out var t) ? t : 300;
 
         var psi = new ProcessStartInfo
@@ -99,5 +101,8 @@ public class ClaudeCliRunner(IConfiguration config, ILogger<ClaudeCliRunner> log
 
         await process.WaitForExitAsync(cts.Token);
         logger.LogInformation("Stream CLI exited with code {ExitCode}", process.ExitCode);
+
+        // Claude CLI 스트리밍에서는 토큰 정보를 제공하지 않음 (Vertex AI만 지원)
+        return null;
     }
 }

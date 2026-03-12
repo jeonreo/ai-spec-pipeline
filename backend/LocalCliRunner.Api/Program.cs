@@ -12,12 +12,26 @@ builder.Services.AddSingleton<PiiTokenizer>();
 builder.Services.AddSingleton<JiraService>();
 builder.Services.AddSingleton<SettingsService>();
 
-// Runner 선택: Vertex.ProjectId가 설정된 경우 GeminiVertexRunner, 없으면 로컬 ClaudeCliRunner
+builder.Services.AddHttpClient(); // IHttpClientFactory for ClaudeVertexRunner + GitHubService
+
+// Runner 선택: Vertex:ProjectId가 있으면 Vertex, 없으면 로컬 ClaudeCliRunner
+// Vertex:Provider == "gemini" → GeminiVertexRunner, 그 외 → ClaudeVertexRunner (기본)
 var vertexProjectId = builder.Configuration["Vertex:ProjectId"];
+var vertexProvider  = builder.Configuration["Vertex:Provider"] ?? "claude";
+
 if (!string.IsNullOrWhiteSpace(vertexProjectId))
-    builder.Services.AddScoped<ICliRunner, GeminiVertexRunner>();
+{
+    if (vertexProvider == "gemini")
+        builder.Services.AddScoped<ICliRunner, GeminiVertexRunner>();
+    else
+        builder.Services.AddScoped<ICliRunner, ClaudeVertexRunner>();
+}
 else
+{
     builder.Services.AddScoped<ICliRunner, ClaudeCliRunner>();
+}
+builder.Services.AddScoped<GitHubService>();
+builder.Services.AddScoped<RepoSearchService>();
 builder.Services.AddScoped<PromptBuilder>();
 builder.Services.AddScoped<WorkspaceManager>();
 builder.Services.AddScoped<RunStageHandler>();

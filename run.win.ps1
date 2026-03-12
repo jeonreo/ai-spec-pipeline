@@ -13,7 +13,9 @@ function Check-Tool($name, $installUrl) {
 }
 
 function Stop-PortIfBusy([int]$port) {
-    $lines = netstat -ano 2>$null | Select-String "TCP\s+\S+:$port\s"
+    $netstatExe = "$env:SystemRoot\system32\netstat.exe"
+    if (-not (Test-Path $netstatExe)) { return }
+    $lines = & $netstatExe -ano 2>$null | Select-String "TCP\s+\S+:$port\s"
     if (-not $lines) { return }
 
     $processId = (($lines[0] -split '\s+') | Where-Object { $_ -match '^\d+$' } | Select-Object -Last 1)
@@ -33,10 +35,14 @@ Write-Host ""
 # --- appsettings.json 읽어서 runner 결정 ---
 $appSettingsPath = "$root\backend\LocalCliRunner.Api\appsettings.json"
 $vertexProjectId = $null
+$vertexProvider  = "claude"
 if (Test-Path $appSettingsPath) {
     try {
         $cfg = Get-Content $appSettingsPath -Raw | ConvertFrom-Json
         $vertexProjectId = $cfg.Vertex.ProjectId
+        if ($cfg.Vertex.PSObject.Properties["Provider"]) {
+            $vertexProvider = $cfg.Vertex.Provider
+        }
     } catch {
         Write-Host "[WARN] appsettings.json parse failed - defaulting to Claude CLI" -ForegroundColor Yellow
     }
@@ -51,7 +57,8 @@ Check-Tool "node"   "https://nodejs.org (LTS)"
 # --- Runner별 체크 ---
 Write-Host ""
 if ($useVertex) {
-    Write-Host "[ .. ] Runner: Vertex AI (ProjectId: $vertexProjectId)" -ForegroundColor Cyan
+    $runnerLabel = if ($vertexProvider -eq "gemini") { "Vertex AI (Gemini)" } else { "Vertex AI (Claude)" }
+    Write-Host "[ .. ] Runner: $runnerLabel (ProjectId: $vertexProjectId)" -ForegroundColor Cyan
 
     # gcloud CLI 설치 확인
     if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) {
@@ -79,12 +86,16 @@ if ($useVertex) {
 
     # Claude 로그인 상태 확인
     Write-Host "[ .. ] Checking claude auth..."
-    $claudeStatus = & claude --print "ping" 2>$null
-    if ($LASTEXITCODE -ne 0 -or -not $claudeStatus) {
-        Write-Host "[WARN] Claude auth may not be configured." -ForegroundColor Yellow
-        Write-Host "       Run 'claude login' and try again." -ForegroundColor Yellow
-    } else {
-        Write-Host "[ OK ] claude auth OK" -ForegroundColor Green
+    try {
+        $claudeStatus = & claude --print "ping" 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $claudeStatus) {
+            Write-Host "[WARN] Claude auth may not be configured." -ForegroundColor Yellow
+            Write-Host "       Run 'claude login' and try again." -ForegroundColor Yellow
+        } else {
+            Write-Host "[ OK ] claude auth OK" -ForegroundColor Green
+        }
+    } catch {
+        Write-Host "[WARN] Claude auth check skipped (running inside Claude Code session)" -ForegroundColor Yellow
     }
 }
 Write-Host ""
@@ -144,6 +155,17 @@ if ([string]::IsNullOrWhiteSpace($jiraToken)) {
     $env:Jira__ApiToken = $jiraToken
     $maskedToken = $jiraToken.Substring(0, [Math]::Min(8, $jiraToken.Length)) + "****"
     Write-Host "[ OK ] $("Jira".PadRight(8)): Token OK ($maskedToken)" -ForegroundColor Green
+
+    # GitHub token도 .env에서 주입
+    $githubToken = Get-EnvValue $envFilePath "GitHub__Token"
+    if ([string]::IsNullOrWhiteSpace($githubToken)) { $githubToken = $env:GitHub__Token }
+    if (-not [string]::IsNullOrWhiteSpace($githubToken)) {
+        $env:GitHub__Token = $githubToken
+        $maskedGh = $githubToken.Substring(0, [Math]::Min(8, $githubToken.Length)) + "****"
+        Write-Host "[ OK ] $("GitHub".PadRight(8)): Token OK ($maskedGh)" -ForegroundColor Green
+    } else {
+        Write-Host "[ -- ] $("GitHub".PadRight(8)): Token not set (Code Agent / PR Draft 비활성)" -ForegroundColor DarkYellow
+    }
 }
 Write-Host ""
 

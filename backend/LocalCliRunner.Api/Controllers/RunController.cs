@@ -18,15 +18,21 @@ public class RunController(
     ICliRunner cliRunner,
     PiiTokenizer piiTokenizer,
     WorkspaceManager workspaceManager,
-    SettingsService settingsService) : ControllerBase
+    SettingsService settingsService,
+    RepoSearchService repoSearch) : ControllerBase
 {
     private static readonly HashSet<string> ValidProfiles =
-        ["intake", "spec", "jira", "qa", "design"];
+        ["intake", "spec", "jira", "qa", "design", "code-analysis", "patch"];
 
     private static readonly Dictionary<string, string> OutputFiles = new()
     {
-        ["intake"] = "intake.md", ["spec"] = "spec.md",
-        ["jira"]   = "jira.json", ["qa"]   = "qa.md", ["design"] = "design.json",
+        ["intake"]        = "intake.md",
+        ["spec"]          = "spec.md",
+        ["jira"]          = "jira.json",
+        ["qa"]            = "qa.md",
+        ["design"]        = "design.json",
+        ["code-analysis"] = "code-analysis.md",
+        ["patch"]         = "patch.json",
     };
 
     // POST /api/run/{profile}
@@ -82,7 +88,34 @@ public class RunController(
         Response.Headers.Append("X-Accel-Buffering", "no");
 
         var (tokenizedInput, piiMap) = piiTokenizer.Tokenize(request.InputText);
-        var prompt = await promptBuilder.BuildAsync(profile, tokenizedInput);
+
+        // code-analysis / patch: FE·BE 저장소를 병렬 검색해 컨텍스트로 주입
+        var promptInput = tokenizedInput;
+        if (profile is "code-analysis" or "patch")
+        {
+            var gh       = settingsService.Get().GitHub;
+            var keywords = RepoSearchService.ExtractSearchKeywords(request.InputText);
+
+            // 설정된 저장소를 모두 병렬 검색
+            var searchTasks = new List<Task<(string Label, List<RepoFile> Files)>>();
+            if (!string.IsNullOrWhiteSpace(gh.FrontendRepoUrl))
+                searchTasks.Add(SearchRepoAsync("Frontend", gh.FrontendRepoUrl, keywords, ct));
+            if (!string.IsNullOrWhiteSpace(gh.BackendRepoUrl))
+                searchTasks.Add(SearchRepoAsync("Backend",  gh.BackendRepoUrl,  keywords, ct));
+
+            if (searchTasks.Count > 0)
+            {
+                var results = await Task.WhenAll(searchTasks);
+                var sections = results
+                    .Where(r => r.Files.Count > 0)
+                    .Select(r => $"## {r.Label} 코드 파일\n\n{RepoSearchService.BuildContext(r.Files)}");
+                var combined = string.Join("\n", sections);
+                if (!string.IsNullOrEmpty(combined))
+                    promptInput = $"{tokenizedInput}\n\n{combined}";
+            }
+        }
+
+        var prompt = await promptBuilder.BuildAsync(profile, promptInput);
 
         var workspacePath = workspaceManager.Create($"s-{Guid.NewGuid().ToString("N")[..6]}");
         var layout = new WorkspaceLayout(workspacePath);
@@ -103,7 +136,7 @@ public class RunController(
 
         var model = settingsService.GetModelForStage(profile);
 
-        await cliRunner.StreamAsync(prompt, workspacePath, async chunk =>
+        var usage = await cliRunner.StreamAsync(prompt, workspacePath, async chunk =>
         {
             fullOutput.Append(chunk);
             var json = JsonSerializer.Serialize(new { chunk });
@@ -113,8 +146,8 @@ public class RunController(
 
         var restored = piiTokenizer.Detokenize(fullOutput.ToString().TrimEnd(), piiMap);
 
-        // jira: 마크다운 코드블록 마커 제거 (```json ... ```)
-        if (profile is "jira" or "design")
+        // JSON 출력 스테이지: 마크다운 코드블록 마커 제거
+        if (profile is "jira" or "design" or "patch")
             restored = StripCodeFence(restored);
 
         // <!--STYLE--> 마커를 실제 CSS로 교체 (design 전용)
@@ -130,7 +163,8 @@ public class RunController(
 
         var warning = await RunVerifyScriptAsync(profile, restored);
 
-        var doneJson = JsonSerializer.Serialize(new { done = true, output = restored, warning });
+        object? tokens = usage is null ? null : new { inputTokens = usage.InputTokens, outputTokens = usage.OutputTokens };
+        var doneJson = JsonSerializer.Serialize(new { done = true, output = restored, warning, tokens });
         await Response.WriteAsync($"data: {doneJson}\n\n", ct);
         await Response.Body.FlushAsync(ct);
     }
@@ -141,6 +175,12 @@ public class RunController(
     {
         var content = await promptBuilder.ReadPolicyAsync();
         return Ok(new { content });
+    }
+
+    private async Task<(string Label, List<RepoFile> Files)> SearchRepoAsync(string label, string repoUrl, string keywords, CancellationToken ct)
+    {
+        var files = await repoSearch.SearchAsync(repoUrl, keywords, ct: ct);
+        return (label, files);
     }
 
     private static string StripCodeFence(string text)
@@ -212,9 +252,33 @@ public class RunController(
     private static string? RunBuiltInVerify(string profile, string outputContent) =>
         profile switch
         {
-            "jira" => VerifyJiraOutput(outputContent),
-            _      => null,
+            "jira"  => VerifyJiraOutput(outputContent),
+            "patch" => VerifyPatchOutput(outputContent),
+            _       => null,
         };
+
+    private static string? VerifyPatchOutput(string outputContent)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(outputContent);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array)
+                return "Patch 결과는 JSON array여야 합니다.";
+
+            var missing = new List<string>();
+            foreach (var item in doc.RootElement.EnumerateArray())
+            {
+                if (!item.TryGetProperty("path", out _))    missing.Add("path");
+                if (!item.TryGetProperty("content", out _)) missing.Add("content");
+                if (missing.Count > 0) break;
+            }
+            return missing.Count > 0 ? $"누락 필드: {string.Join(", ", missing.Distinct())}" : null;
+        }
+        catch (JsonException ex)
+        {
+            return $"Patch JSON 파싱 실패: {ex.Message}";
+        }
+    }
 
     private static string? VerifyJiraOutput(string outputContent)
     {
@@ -332,4 +396,7 @@ public class HistoryController(WorkspaceManager workspaceManager) : ControllerBa
     }
 }
 
-public record RunRequest(string InputText, Dictionary<string, string>? AllOutputs = null);
+public record RunRequest(
+    string InputText,
+    Dictionary<string, string>? AllOutputs = null
+);

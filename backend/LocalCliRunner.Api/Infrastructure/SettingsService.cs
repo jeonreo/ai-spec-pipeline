@@ -3,17 +3,31 @@ using System.Text.Json.Serialization;
 
 namespace LocalCliRunner.Api.Infrastructure;
 
+public class GitHubSettings
+{
+    [JsonPropertyName("frontendRepoUrl")]
+    public string FrontendRepoUrl { get; set; } = "";
+
+    [JsonPropertyName("backendRepoUrl")]
+    public string BackendRepoUrl { get; set; } = "";
+}
+
 public class PipelineSettings
 {
     [JsonPropertyName("stageModels")]
     public Dictionary<string, string> StageModels { get; set; } = new()
     {
-        ["intake"] = "claude-haiku-4-5-20251001",
-        ["spec"]   = "claude-sonnet-4-6",
-        ["jira"]   = "claude-haiku-4-5-20251001",
-        ["qa"]     = "claude-sonnet-4-6",
-        ["design"] = "claude-haiku-4-5-20251001",
+        ["intake"]        = "claude-haiku-4-5-20251001",
+        ["spec"]          = "claude-sonnet-4-6",
+        ["jira"]          = "claude-haiku-4-5-20251001",
+        ["qa"]            = "claude-sonnet-4-6",
+        ["design"]        = "claude-haiku-4-5-20251001",
+        ["code-analysis"] = "claude-sonnet-4-6",
+        ["patch"]         = "claude-sonnet-4-6",
     };
+
+    [JsonPropertyName("github")]
+    public GitHubSettings GitHub { get; set; } = new();
 }
 
 /// <summary>

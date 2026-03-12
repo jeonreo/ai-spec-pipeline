@@ -24,11 +24,13 @@ interface Props {
 }
 
 const DRAWER_META: Record<Tab, { label: string; icon: string; desc: string }> = {
-  intake: { label: 'Intake Agent',  icon: '📥', desc: '비정형 입력 → 구조화된 요구사항 분석' },
-  spec:   { label: 'Spec Agent',    icon: '📋', desc: 'Intake + 결정사항 → 기능 명세 (SSoT)' },
-  jira:   { label: 'Jira Agent',    icon: '🎯', desc: 'Spec → Jira 이슈 초안 생성'           },
-  qa:     { label: 'QA Agent',      icon: '🧪', desc: 'Spec → QA 테스트 케이스 작성'          },
-  design: { label: 'Design Agent',  icon: '🎨', desc: 'Spec → 디자인 핸드오프 패키지'         },
+  intake:          { label: 'Intake Agent',  icon: '📥', desc: '비정형 입력 → 구조화된 요구사항 분석'           },
+  spec:            { label: 'Spec Agent',    icon: '📋', desc: 'Intake + 결정사항 → 기능 명세 (SSoT)'          },
+  jira:            { label: 'Jira Agent',    icon: '🎯', desc: 'Spec → Jira 이슈 초안 생성'                    },
+  qa:              { label: 'QA Agent',      icon: '🧪', desc: 'Spec → QA 테스트 케이스 작성'                  },
+  design:          { label: 'Design Agent',  icon: '🎨', desc: 'Spec → 디자인 핸드오프 패키지'                 },
+  'code-analysis': { label: 'Code Agent',    icon: '🔍', desc: 'Spec + 코드베이스 → 변경 대상 파일 분석'       },
+  patch:           { label: 'Patch Agent',   icon: '🩹', desc: 'Code Analysis → 실제 파일 변경 코드 생성'      },
 }
 
 function statusLabel(state: RunState) {
@@ -131,6 +133,53 @@ function SpecContentView({ content, onChange }: { content: string; onChange: (v:
   )
 }
 
+function PatchView({ content }: { content: string }) {
+  interface PatchFile { repo?: string; path: string; content: string; comment?: string }
+
+  let patches: PatchFile[] = []
+  let parseError = ''
+  try {
+    patches = JSON.parse(content)
+    if (!Array.isArray(patches)) { patches = []; parseError = 'JSON array 형식이 아닙니다.' }
+  } catch (e) {
+    parseError = content ? '아직 완성되지 않은 JSON입니다. 스트리밍 완료 후 확인하세요.' : ''
+  }
+
+  if (parseError) return <div className="drawer-empty">{parseError}</div>
+  if (!patches.length) return <div className="drawer-empty">변경 파일 없음</div>
+
+  const byRepo = patches.reduce<Record<string, PatchFile[]>>((acc, p) => {
+    const key = p.repo ?? 'unknown'
+    ;(acc[key] ??= []).push(p)
+    return acc
+  }, {})
+
+  return (
+    <div className="patch-view">
+      <div className="patch-summary">
+        총 {patches.length}개 파일 변경
+        {Object.entries(byRepo).map(([repo, files]) => (
+          <span key={repo} className="patch-repo-badge">{repo.toUpperCase()} {files.length}개</span>
+        ))}
+      </div>
+      {Object.entries(byRepo).map(([repo, files]) => (
+        <div key={repo} className="patch-repo-group">
+          <div className="patch-repo-label">{repo.toUpperCase()} 저장소</div>
+          {files.map((f, i) => (
+            <details key={i} className="patch-file">
+              <summary className="patch-file-summary">
+                <span className="patch-file-path">{f.path}</span>
+                {f.comment && <span className="patch-file-comment">{f.comment}</span>}
+              </summary>
+              <pre className="patch-file-content">{f.content}</pre>
+            </details>
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function CardDetailDrawer({
   tab, runState, output, specOutput, elapsed, warning,
   onOutputChange, onClose, onRun, specDone,
@@ -151,8 +200,8 @@ export default function CardDetailDrawer({
   }, [onClose])
 
   function renderContent() {
-    if (isRunning) return <div className="drawer-empty">실행 중...</div>
-    if (!output)   return <div className="drawer-empty">아직 실행되지 않았습니다.</div>
+    if (!output && isRunning) return <div className="drawer-empty">실행 중...</div>
+    if (!output)              return <div className="drawer-empty">아직 실행되지 않았습니다.</div>
     if (tab === 'intake') return (
       <div className="intake-drawer-content">
         <IntakeContentView content={output} />
@@ -185,10 +234,12 @@ export default function CardDetailDrawer({
         </div>
       </div>
     )
-    if (tab === 'spec')   return <SpecContentView content={output} onChange={onOutputChange} />
-    if (tab === 'jira')   return <JiraView content={output} onChange={onOutputChange} specContent={specOutput} initialProjectKey={jiraProjectKey} initialIssueTypeName={jiraIssueTypeName} />
-    if (tab === 'qa')     return <textarea className="drawer-textarea" value={output} onChange={e => onOutputChange(e.target.value)} />
-    if (tab === 'design') return <DesignPackageView content={output} onChange={onOutputChange} />
+    if (tab === 'spec')            return <SpecContentView content={output} onChange={onOutputChange} />
+    if (tab === 'jira')            return <JiraView content={output} onChange={onOutputChange} specContent={specOutput} initialProjectKey={jiraProjectKey} initialIssueTypeName={jiraIssueTypeName} />
+    if (tab === 'qa')              return <textarea className="drawer-textarea" value={output} onChange={e => onOutputChange(e.target.value)} />
+    if (tab === 'design')          return <DesignPackageView content={output} onChange={onOutputChange} />
+    if (tab === 'code-analysis')   return <SpecContentView content={output} onChange={onOutputChange} />
+    if (tab === 'patch')           return <PatchView content={output} />
     return null
   }
 

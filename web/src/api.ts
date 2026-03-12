@@ -1,6 +1,12 @@
+export interface TokenUsage {
+  inputTokens: number
+  outputTokens: number
+}
+
 export interface StreamResult {
   output: string
   warning?: string
+  tokens?: TokenUsage
 }
 
 const STREAM_UPDATE_INTERVAL_MS = 75
@@ -53,7 +59,7 @@ export async function streamStage(
       const data = JSON.parse(event.slice(6))
       if (data.done) {
         flushAccumulated()
-        return { output: data.output, warning: data.warning ?? undefined }
+        return { output: data.output, warning: data.warning ?? undefined, tokens: data.tokens ?? undefined }
       }
       if (data.chunk) {
         accumulated += data.chunk
@@ -201,10 +207,57 @@ export async function consolidateKnowledge(
   return accumulated
 }
 
+// ── GitHub Integration ─────────────────────────────────────────────────────────
+
+export interface GitHubRepoStatus {
+  label: string
+  url: string
+  connected: boolean
+  repoName?: string
+  defaultBranch?: string
+  error?: string
+}
+
+export interface CreatePrPayload {
+  title: string
+  patches: { repo?: string; path: string; content: string; comment?: string }[]
+  specSummary?: string
+  analysisSummary?: string
+}
+
+export interface PrResult {
+  label: string
+  prUrl?: string
+  error?: string
+}
+
+export async function fetchGithubStatus(): Promise<GitHubRepoStatus[]> {
+  const res = await fetch('/api/github/status')
+  if (!res.ok) throw new Error(`서버 오류: ${res.status}`)
+  return res.json()
+}
+
+export async function createPullRequest(payload: CreatePrPayload): Promise<{ results: PrResult[] }> {
+  const res = await fetch('/api/github/pr', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error ?? `서버 오류: ${res.status}`)
+  return data
+}
+
 // ── Settings ──────────────────────────────────────────────────────────────────
+
+export interface GitHubSettings {
+  frontendRepoUrl: string
+  backendRepoUrl: string
+}
 
 export interface PipelineSettings {
   stageModels: Record<string, string>
+  github: GitHubSettings
 }
 
 export async function fetchSettings(): Promise<PipelineSettings> {

@@ -1,20 +1,21 @@
 import { useState, useEffect, startTransition } from 'react'
-import { streamStage, fetchPolicy } from './api'
+import { streamStage, fetchPolicy, TokenUsage, createPullRequest, PrResult } from './api'
 import SourcePanel from './components/SourcePanel'
 import KanbanBoard from './components/KanbanBoard'
 import HistoryPanel from './components/HistoryPanel'
 import SettingsModal from './components/SettingsModal'
 
-export type Tab = 'intake' | 'spec' | 'jira' | 'qa' | 'design'
+export type Tab = 'intake' | 'spec' | 'jira' | 'qa' | 'design' | 'code-analysis' | 'patch'
 export type RunState = 'idle' | 'running' | 'done' | 'failed'
 
-const TABS: Tab[] = ['intake', 'spec', 'jira', 'qa', 'design']
+const TABS: Tab[] = ['intake', 'spec', 'jira', 'qa', 'design', 'code-analysis', 'patch']
 
-const EMPTY_OUTPUTS: Record<Tab, string> = { intake: '', spec: '', jira: '', qa: '', design: '' }
-const EMPTY_STATES:  Record<Tab, RunState> = { intake: 'idle', spec: 'idle', jira: 'idle', qa: 'idle', design: 'idle' }
-const EMPTY_ELAPSED: Record<Tab, number | null> = { intake: null, spec: null, jira: null, qa: null, design: null }
-const EMPTY_WARNINGS: Record<Tab, string> = { intake: '', spec: '', jira: '', qa: '', design: '' }
-const EMPTY_SIGNATURES: Record<Tab, string> = { intake: '', spec: '', jira: '', qa: '', design: '' }
+const EMPTY_OUTPUTS: Record<Tab, string>           = { intake: '', spec: '', jira: '', qa: '', design: '', 'code-analysis': '', patch: '' }
+const EMPTY_STATES:  Record<Tab, RunState>          = { intake: 'idle', spec: 'idle', jira: 'idle', qa: 'idle', design: 'idle', 'code-analysis': 'idle', patch: 'idle' }
+const EMPTY_ELAPSED: Record<Tab, number | null>     = { intake: null, spec: null, jira: null, qa: null, design: null, 'code-analysis': null, patch: null }
+const EMPTY_TOKENS:  Record<Tab, TokenUsage | null> = { intake: null, spec: null, jira: null, qa: null, design: null, 'code-analysis': null, patch: null }
+const EMPTY_WARNINGS: Record<Tab, string>           = { intake: '', spec: '', jira: '', qa: '', design: '', 'code-analysis': '', patch: '' }
+const EMPTY_SIGNATURES: Record<Tab, string>         = { intake: '', spec: '', jira: '', qa: '', design: '', 'code-analysis': '', patch: '' }
 
 const SESSION_KEY = 'ai-spec-pipeline-session'
 
@@ -60,15 +61,17 @@ function extractSpecSections(spec: string, headings: string[]): string {
 }
 
 const STAGE_INPUT: Record<Tab, (ctx: Context) => string> = {
-  intake: (ctx) => ctx.input,
-  spec:   (ctx) => {
+  intake:          (ctx) => ctx.input,
+  spec:            (ctx) => {
     const base = ctx.outputs.intake
     if (!ctx.decisions.trim()) return base
     return `${base}\n\n---\n## 결정사항\n\n${ctx.decisions}`
   },
-  jira:   (ctx) => ctx.outputs.spec,
-  qa:     (ctx) => ctx.outputs.spec,
-  design: (ctx) => extractSpecSections(ctx.outputs.spec, ['## 기능 요약', '## UI 구성']),
+  jira:            (ctx) => ctx.outputs.spec,
+  qa:              (ctx) => ctx.outputs.spec,
+  design:          (ctx) => extractSpecSections(ctx.outputs.spec, ['## 기능 요약', '## UI 구성']),
+  'code-analysis': (ctx) => ctx.outputs.spec,
+  patch:           (ctx) => ctx.outputs['code-analysis'],
 }
 
 interface Context {
@@ -78,12 +81,11 @@ interface Context {
 }
 
 function buildStageInputSignatures(ctx: Context): Record<Tab, string> {
+  const sig = (tab: Tab) => hashString(normalizeStageInput(STAGE_INPUT[tab](ctx)))
   return {
-    intake: hashString(normalizeStageInput(STAGE_INPUT.intake(ctx))),
-    spec:   hashString(normalizeStageInput(STAGE_INPUT.spec(ctx))),
-    jira:   hashString(normalizeStageInput(STAGE_INPUT.jira(ctx))),
-    qa:     hashString(normalizeStageInput(STAGE_INPUT.qa(ctx))),
-    design: hashString(normalizeStageInput(STAGE_INPUT.design(ctx))),
+    intake: sig('intake'), spec: sig('spec'), jira: sig('jira'),
+    qa: sig('qa'), design: sig('design'),
+    'code-analysis': sig('code-analysis'), patch: sig('patch'),
   }
 }
 
@@ -92,14 +94,15 @@ function buildStaleFlags(
   currentInputSignatures: Record<Tab, string>,
   completedInputSignatures: Record<Tab, string>,
 ): Record<Tab, boolean> {
-  const hasCompletedSignature = (tab: Tab) => completedInputSignatures[tab] !== ''
+  const stale = (tab: Tab) =>
+    runStates[tab] === 'done' &&
+    completedInputSignatures[tab] !== '' &&
+    currentInputSignatures[tab] !== completedInputSignatures[tab]
 
   return {
-    intake: runStates.intake === 'done' && hasCompletedSignature('intake') && currentInputSignatures.intake !== completedInputSignatures.intake,
-    spec:   runStates.spec === 'done' && hasCompletedSignature('spec') && currentInputSignatures.spec !== completedInputSignatures.spec,
-    jira:   runStates.jira === 'done' && hasCompletedSignature('jira') && currentInputSignatures.jira !== completedInputSignatures.jira,
-    qa:     runStates.qa === 'done' && hasCompletedSignature('qa') && currentInputSignatures.qa !== completedInputSignatures.qa,
-    design: runStates.design === 'done' && hasCompletedSignature('design') && currentInputSignatures.design !== completedInputSignatures.design,
+    intake: stale('intake'), spec: stale('spec'), jira: stale('jira'),
+    qa: stale('qa'), design: stale('design'),
+    'code-analysis': stale('code-analysis'), patch: stale('patch'),
   }
 }
 
@@ -112,6 +115,7 @@ export default function App() {
   const [errors, setErrors]     = useState<Record<Tab, string>>({ ...EMPTY_WARNINGS })
   const [warnings, setWarnings] = useState<Record<Tab, string>>({ ...EMPTY_WARNINGS, ..._saved?.warnings })
   const [elapsed, setElapsed]   = useState<Record<Tab, number | null>>({ ...EMPTY_ELAPSED, ..._saved?.elapsed })
+  const [tokens, setTokens]     = useState<Record<Tab, TokenUsage | null>>({ ...EMPTY_TOKENS, ..._saved?.tokens })
   const [completedInputSignatures, setCompletedInputSignatures] = useState<Record<Tab, string>>(
     { ...EMPTY_SIGNATURES, ..._saved?.completedInputSignatures }
   )
@@ -120,6 +124,8 @@ export default function App() {
   const [jiraProjectKey, setJiraProjectKey] = useState<string>(_saved?.jiraProjectKey ?? '')
   const [jiraIssueTypeName, setJiraIssueTypeName] = useState<string>(_saved?.jiraIssueTypeName ?? '')
   const [projectKnowledge, setProjectKnowledge] = useState<string>(_saved?.projectKnowledge ?? '')
+  const [prResults, setPrResults]   = useState<PrResult[]>(_saved?.prResults ?? [])
+  const [prCreating, setPrCreating] = useState(false)
   const [policy, setPolicy]     = useState<string | null>(null)
   const [policyOpen, setPolicyOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -136,6 +142,7 @@ export default function App() {
       outputs,
       runStates: sanitizeRunStates(runStates),
       elapsed,
+      tokens,
       warnings,
       completedInputSignatures,
       decisions,
@@ -143,9 +150,10 @@ export default function App() {
       jiraProjectKey,
       jiraIssueTypeName,
       projectKnowledge,
+      prResults,
     }
     localStorage.setItem(SESSION_KEY, JSON.stringify(data))
-  }, [input, outputs, runStates, elapsed, warnings, completedInputSignatures, decisions, decisionsConfirmed, jiraProjectKey, jiraIssueTypeName, projectKnowledge])
+  }, [input, outputs, runStates, elapsed, tokens, warnings, completedInputSignatures, decisions, decisionsConfirmed, jiraProjectKey, jiraIssueTypeName, projectKnowledge, prResults])
 
   async function handlePolicyOpen() {
     if (!policy) {
@@ -176,6 +184,7 @@ export default function App() {
     setStageError(tab, '')
     setWarnings(prev => ({ ...prev, [tab]: '' }))
     setElapsed(prev => ({ ...prev, [tab]: null }))
+    setTokens(prev => ({ ...prev, [tab]: null }))
 
     const startedAt = Date.now()
 
@@ -189,6 +198,7 @@ export default function App() {
       const elapsedSec = (Date.now() - startedAt) / 1000
       setOutputs(prev => ({ ...prev, [tab]: result.output }))
       setElapsed(prev => ({ ...prev, [tab]: elapsedSec }))
+      if (result.tokens) setTokens(prev => ({ ...prev, [tab]: result.tokens! }))
       setStageState(tab, 'done')
       setCompletedInputSignatures(prev => ({ ...prev, [tab]: inputSignature }))
       if (result.warning) setWarnings(prev => ({ ...prev, [tab]: result.warning! }))
@@ -228,6 +238,29 @@ export default function App() {
     Promise.all((['jira', 'qa', 'design'] as Tab[]).map(tab => handleRun(tab)))
   }
 
+  async function handleCreatePr() {
+    if (!outputs.patch) return
+    setPrCreating(true)
+    setPrResults([])
+    try {
+      const patches = JSON.parse(outputs.patch) as { repo?: string; path: string; content: string; comment?: string }[]
+      const specLines = outputs.spec.split('\n')
+      const title = specLines.find(l => l.startsWith('# '))?.slice(2).trim() ?? 'AI Draft: 코드 변경 제안'
+
+      const { results } = await createPullRequest({
+        title: `[AI Draft] ${title}`,
+        patches,
+        specSummary: specLines.slice(0, 10).join('\n'),
+        analysisSummary: outputs['code-analysis'].slice(0, 500),
+      })
+      setPrResults(results)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'PR 생성 실패')
+    } finally {
+      setPrCreating(false)
+    }
+  }
+
   function handleReset() {
     setInput('')
     setOutputs({ ...EMPTY_OUTPUTS })
@@ -235,9 +268,11 @@ export default function App() {
     setErrors({ ...EMPTY_WARNINGS })
     setWarnings({ ...EMPTY_WARNINGS })
     setElapsed({ ...EMPTY_ELAPSED })
+    setTokens({ ...EMPTY_TOKENS })
     setCompletedInputSignatures({ ...EMPTY_SIGNATURES })
     setDecisions('')
     setDecisionsConfirmed(false)
+    setPrResults([])
     localStorage.removeItem(SESSION_KEY)
   }
 
@@ -254,6 +289,7 @@ export default function App() {
       return next
     })
     setElapsed({ ...EMPTY_ELAPSED })
+    setTokens({ ...EMPTY_TOKENS })
     setCompletedInputSignatures(prev => {
       const next = { ...prev }
       for (const tab of Object.keys(restoredOutputs) as Tab[]) next[tab] = restoredSignatures[tab]
@@ -332,18 +368,22 @@ export default function App() {
           runStates={runStates}
           stale={stale}
           elapsed={elapsed}
+          tokens={tokens}
           warnings={warnings}
           specDone={runStates.spec === 'done'}
           decisionsConfirmed={decisionsConfirmed}
           decisions={decisions}
           jiraProjectKey={jiraProjectKey}
           jiraIssueTypeName={jiraIssueTypeName}
+          prResults={prResults}
+          prCreating={prCreating}
           onRun={handleRun}
           onRunParallel={handleRunParallel}
           onOutputChange={handleOutputChange}
           onDecisionsChange={setDecisions}
           onConfirmAndRun={handleConfirmAndAutoRun}
           onSkipAndRun={handleSkipAndAutoRun}
+          onCreatePr={handleCreatePr}
         />
       </main>
     </div>

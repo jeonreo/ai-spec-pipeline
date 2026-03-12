@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Tab, RunState } from '../App'
+import { TokenUsage, PrResult } from '../api'
 import CardDetailDrawer from './CardDetailDrawer'
 
 // ── Types ───────────────────────────────────────────────────────
@@ -14,11 +15,13 @@ interface StageMeta {
 }
 
 const STAGE_META: Record<Tab, StageMeta> = {
-  intake: { label: 'Intake Agent',  icon: '📥', tags: ['requirements', 'analysis'],   priority: 'Critical', agent: 'intake-agent' },
-  spec:   { label: 'Spec Agent',    icon: '📋', tags: ['specification', 'planning'],  priority: 'Critical', agent: 'spec-agent'   },
-  jira:   { label: 'Jira Agent',    icon: '🎯', tags: ['jira', 'ticket'],             priority: 'High',     agent: 'jira-agent'   },
-  qa:     { label: 'QA Agent',      icon: '🧪', tags: ['testing', 'qa'],              priority: 'High',     agent: 'qa-agent'     },
-  design: { label: 'Design Agent',  icon: '🎨', tags: ['design', 'handoff'],          priority: 'High',     agent: 'design-agent' },
+  intake:          { label: 'Intake Agent',  icon: '📥', tags: ['requirements', 'analysis'],   priority: 'Critical', agent: 'intake-agent'  },
+  spec:            { label: 'Spec Agent',    icon: '📋', tags: ['specification', 'planning'],  priority: 'Critical', agent: 'spec-agent'    },
+  jira:            { label: 'Jira Agent',    icon: '🎯', tags: ['jira', 'ticket'],             priority: 'High',     agent: 'jira-agent'    },
+  qa:              { label: 'QA Agent',      icon: '🧪', tags: ['testing', 'qa'],              priority: 'High',     agent: 'qa-agent'      },
+  design:          { label: 'Design Agent',  icon: '🎨', tags: ['design', 'handoff'],          priority: 'High',     agent: 'design-agent'  },
+  'code-analysis': { label: 'Code Agent',    icon: '🔍', tags: ['code', 'analysis'],           priority: 'High',     agent: 'code-agent'    },
+  patch:           { label: 'Patch Agent',   icon: '🩹', tags: ['patch', 'code-change'],       priority: 'High',     agent: 'patch-agent'   },
 }
 
 const COLUMNS: { id: BoardCol; label: string }[] = [
@@ -29,13 +32,15 @@ const COLUMNS: { id: BoardCol; label: string }[] = [
   { id: 'failed',  label: 'Failed'      },
 ]
 
-function getBoardCol(tab: Tab, state: RunState, decisionsConfirmed: boolean): BoardCol {
+function getBoardCol(tab: Tab, state: RunState, decisionsConfirmed: boolean, specDone: boolean): BoardCol {
   if (state === 'running') return 'running'
   if (state === 'failed')  return 'failed'
   if (state === 'done') {
     if (tab === 'intake' && !decisionsConfirmed) return 'review'
     return 'done'
   }
+  // code-analysis/patch는 spec이 완료되어야 queue에 표시
+  if ((tab === 'code-analysis' || tab === 'patch') && !specDone) return 'queue'
   return 'queue'
 }
 
@@ -44,21 +49,27 @@ interface CardProps {
   tab: Tab
   runState: RunState
   elapsed: number | null
+  tokens: TokenUsage | null
   warning: string
   stale: boolean
   specDone: boolean
+  output: string
   onRun: () => void
   onOpen: () => void
   decisionsConfirmed: boolean
 }
 
-function TaskCard({ tab, runState, elapsed, warning, stale, specDone, onRun, onOpen, decisionsConfirmed }: CardProps) {
+function TaskCard({ tab, runState, elapsed, tokens, warning, stale, specDone, output, onRun, onOpen, decisionsConfirmed }: CardProps) {
   const meta      = STAGE_META[tab]
   const isDone    = runState === 'done'
   const isRunning = runState === 'running'
   const isFailed  = runState === 'failed'
-  const canRun    = !isRunning && (tab === 'intake' || tab === 'spec' || specDone)
-  const col       = getBoardCol(tab, runState, decisionsConfirmed)
+  const canRun = !isRunning && (
+    tab === 'intake' ||
+    tab === 'spec'   ||
+    (specDone && (tab === 'jira' || tab === 'qa' || tab === 'design' || tab === 'code-analysis' || tab === 'patch'))
+  )
+  const col = getBoardCol(tab, runState, decisionsConfirmed, specDone)
 
   return (
     <div
@@ -84,11 +95,18 @@ function TaskCard({ tab, runState, elapsed, warning, stale, specDone, onRun, onO
         </div>
       </div>
 
+      {(isDone || col === 'review') && output && (
+        <div className="task-card-preview" onClick={onOpen}>
+          {output.slice(0, 120).replace(/[#*`>\-]/g, '').trim()}{output.length > 120 ? '…' : ''}
+        </div>
+      )}
+
       <div className="task-card-footer">
         <div className="task-card-agent">
           <span className={`agent-dot${isDone ? ' agent-dot--active' : ''}`} />
           <span className="agent-name">{meta.agent}</span>
           {elapsed !== null && <span className="agent-elapsed">{elapsed.toFixed(1)}s</span>}
+          {tokens !== null && <span className="agent-tokens" title={`input: ${tokens.inputTokens.toLocaleString()} / output: ${tokens.outputTokens.toLocaleString()}`}>{tokens.inputTokens.toLocaleString()}/{tokens.outputTokens.toLocaleString()}</span>}
           {isRunning && <span className="running-indicator"><span /><span /><span /></span>}
         </div>
         <div className="task-card-actions" onClick={e => e.stopPropagation()}>
@@ -116,33 +134,40 @@ interface BoardProps {
   runStates: Record<Tab, RunState>
   stale: Record<Tab, boolean>
   elapsed: Record<Tab, number | null>
+  tokens: Record<Tab, TokenUsage | null>
   warnings: Record<Tab, string>
   specDone: boolean
   decisionsConfirmed: boolean
   decisions: string
   jiraProjectKey: string
   jiraIssueTypeName: string
+  prResults: PrResult[]
+  prCreating: boolean
   onRun: (tab: Tab) => void
   onRunParallel: () => void
   onOutputChange: (tab: Tab, val: string) => void
   onDecisionsChange: (v: string) => void
   onConfirmAndRun: () => void
   onSkipAndRun: () => void
+  onCreatePr: () => void
 }
 
-const ALL_STAGES: Tab[] = ['intake', 'spec', 'jira', 'qa', 'design']
+const ALL_STAGES: Tab[] = ['intake', 'spec', 'jira', 'qa', 'design', 'code-analysis', 'patch']
 
 export default function KanbanBoard({
-  outputs, runStates, stale, elapsed, warnings,
+  outputs, runStates, stale, elapsed, tokens, warnings,
   specDone, decisionsConfirmed, decisions, jiraProjectKey, jiraIssueTypeName,
+  prResults, prCreating,
   onRun, onRunParallel, onOutputChange, onDecisionsChange, onConfirmAndRun, onSkipAndRun,
+  onCreatePr,
 }: BoardProps) {
   const [drawerTab, setDrawerTab] = useState<Tab | null>(null)
 
   const doneCount    = ALL_STAGES.filter(t => runStates[t] === 'done').length
   const runningCount = ALL_STAGES.filter(t => runStates[t] === 'running').length
   const colStages    = (col: BoardCol) =>
-    ALL_STAGES.filter(t => getBoardCol(t, runStates[t], decisionsConfirmed) === col)
+    ALL_STAGES.filter(t => getBoardCol(t, runStates[t], decisionsConfirmed, specDone) === col)
+  const patchDone    = runStates.patch === 'done'
 
   return (
     <div className="kanban-board">
@@ -185,7 +210,9 @@ export default function KanbanBoard({
                     tab={tab}
                     runState={runStates[tab]}
                     elapsed={elapsed[tab]}
+                    tokens={tokens[tab]}
                     warning={warnings[tab]}
+                    output={outputs[tab]}
                     stale={stale[tab]}
                     specDone={specDone}
                     decisionsConfirmed={decisionsConfirmed}
@@ -198,6 +225,42 @@ export default function KanbanBoard({
           )
         })}
       </div>
+
+      {/* PR Agent bar — patch 완료 시 표시 */}
+      {patchDone && (
+        <div className="pr-agent-bar">
+          <div className="pr-agent-bar-left">
+            <span className="pr-agent-icon">🚀</span>
+            <span className="pr-agent-label">PR Agent</span>
+            <span className="task-tag">github</span>
+            <span className="task-tag">pr-draft</span>
+            <span className="task-tag">FE + BE</span>
+          </div>
+          <div className="pr-agent-bar-right">
+            {prResults.length > 0 ? (
+              <div className="pr-results">
+                {prResults.map(r => r.prUrl ? (
+                  <a key={r.label} className="btn-pr-url" href={r.prUrl} target="_blank" rel="noreferrer">
+                    {r.label.toUpperCase()} PR ↗
+                  </a>
+                ) : (
+                  <span key={r.label} className="pr-result-error" title={r.error}>
+                    {r.label.toUpperCase()} 실패
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <button
+                className={`btn-create-pr${prCreating ? ' btn-create-pr--loading' : ''}`}
+                onClick={onCreatePr}
+                disabled={prCreating}
+              >
+                {prCreating ? '생성 중...' : 'Create PR Draft'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Detail drawer */}
       {drawerTab && (

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Tab, RunState } from '../App'
 import ProjectKnowledgePanel from './ProjectKnowledgePanel'
+import GitHubPanel from './GitHubPanel'
 import { fetchJiraProjects, fetchJiraIssueTypes, fetchJiraStatus, JiraProject, JiraIssueType } from '../api'
 
 interface Props {
@@ -40,8 +41,10 @@ export default function SourcePanel({
 
     async function waitAndLoad() {
       setJiraLoading(true)
-      // Poll until backend responds (max 30s)
-      for (let i = 0; i < 60; i++) {
+      // 첫 시도 전 1초 대기 (서버 기동 시간 확보)
+      await new Promise(r => setTimeout(r, 1000))
+      // Poll until backend responds (max 30s, 1s interval)
+      for (let i = 0; i < 30; i++) {
         if (cancelled) return
         try {
           const [status, list] = await Promise.all([fetchJiraStatus(), fetchJiraProjects()])
@@ -56,7 +59,7 @@ export default function SourcePanel({
           return
         } catch {
           // backend not ready yet — wait and retry
-          await new Promise(r => setTimeout(r, 500))
+          await new Promise(r => setTimeout(r, 1000))
         }
       }
       // Timed out
@@ -73,7 +76,7 @@ export default function SourcePanel({
     let cancelled = false
     async function loadTypes() {
       setTypesLoading(true)
-      for (let i = 0; i < 60; i++) {
+      for (let i = 0; i < 30; i++) {
         if (cancelled) return
         try {
           const types = await fetchJiraIssueTypes(jiraProjectKey)
@@ -87,7 +90,7 @@ export default function SourcePanel({
           setTypesLoading(false)
           return
         } catch {
-          await new Promise(r => setTimeout(r, 500))
+          await new Promise(r => setTimeout(r, 1000))
         }
       }
       setIssueTypes([])
@@ -168,6 +171,9 @@ export default function SourcePanel({
           </div>
         </div>
       </div>
+
+      {/* GitHub 저장소 설정 */}
+      <GitHubPanel />
 
       {/* 프로젝트 지식 */}
       <ProjectKnowledgePanel

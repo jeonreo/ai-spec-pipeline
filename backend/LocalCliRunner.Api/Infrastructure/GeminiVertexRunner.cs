@@ -25,9 +25,11 @@ public class GeminiVertexRunner(IConfiguration config, ILogger<GeminiVertexRunne
             var client   = await BuildClientAsync();
             var response = await client.GenerateContentAsync(BuildRequest(modelId, promptContent), ct);
             var text     = ExtractText(response);
+            TokenUsage? usage = response.UsageMetadata is null ? null
+                : new TokenUsage(response.UsageMetadata.PromptTokenCount, response.UsageMetadata.CandidatesTokenCount);
 
             logger.LogInformation("Vertex AI call succeeded, output length={Length}", text.Length);
-            return new CliResult(0, text, string.Empty);
+            return new CliResult(0, text, string.Empty, usage);
         }
         catch (Exception ex)
         {
@@ -36,21 +38,28 @@ public class GeminiVertexRunner(IConfiguration config, ILogger<GeminiVertexRunne
         }
     }
 
-    public async Task StreamAsync(string promptContent, string workspacePath, Func<string, Task> onChunk, string? model = null, CancellationToken ct = default)
+    public async Task<TokenUsage?> StreamAsync(string promptContent, string workspacePath, Func<string, Task> onChunk, string? model = null, CancellationToken ct = default)
     {
         var modelId = model ?? DefaultModel;
         logger.LogInformation("Vertex AI stream: project={Project}, location={Location}, model={Model}", ProjectId, Location, modelId);
 
-        var client      = await BuildClientAsync();
-        var streamCall  = client.StreamGenerateContent(BuildRequest(modelId, promptContent));
+        var client         = await BuildClientAsync();
+        var streamCall     = client.StreamGenerateContent(BuildRequest(modelId, promptContent));
         var responseStream = streamCall.GetResponseStream();
+
+        GenerateContentResponse.Types.UsageMetadata? lastUsage = null;
 
         await foreach (var response in responseStream.WithCancellation(ct))
         {
             var chunk = ExtractText(response);
             if (!string.IsNullOrEmpty(chunk))
                 await onChunk(chunk);
+            if (response.UsageMetadata is not null)
+                lastUsage = response.UsageMetadata;
         }
+
+        return lastUsage is null ? null
+            : new TokenUsage(lastUsage.PromptTokenCount, lastUsage.CandidatesTokenCount);
     }
 
     private async Task<PredictionServiceClient> BuildClientAsync()
