@@ -164,6 +164,8 @@ GitHub__Token=your_github_personal_access_token
 - Jira 토큰: https://id.atlassian.com/manage-profile/security/api-tokens
 - GitHub 토큰: https://github.com/settings/tokens (`repo` 스코프 필요)
 
+> **보안**: 토큰은 반드시 `.env`에만 보관하세요. `appsettings.Development.json`에 토큰을 넣지 마세요 — git 커밋 시 노출됩니다.
+
 ### 2. Jira·GitHub 설정
 
 `backend/LocalCliRunner.Api/appsettings.json`:
@@ -190,7 +192,7 @@ claude login        # Claude CLI 사용 시
 
 **Windows**
 ```powershell
-.\run.win.ps1
+.\run.win.bat
 ```
 
 **macOS**
@@ -286,7 +288,9 @@ claude --help
 # 설치: https://docs.anthropic.com/en/docs/claude-code
 ```
 
-**Jira 토큰 오류** — `.env` 파일에 `Jira__ApiToken` 확인. `run.win.ps1`이 누락 시 자동 안내.
+**Jira 토큰 오류** — `.env` 파일에 `Jira__ApiToken` 확인. `run.win.bat` 실행 시 누락이면 자동 안내.
+
+**토큰 revoke 오류** — `appsettings.Development.json`에 실제 토큰을 넣고 git push하면 GitHub이 자동 revoke합니다. 토큰은 `.env`에만 보관하세요.
 
 **GitHub 연결 실패 (✗)** — `.env`에 `GitHub__Token` 확인, `repo` 스코프 필요.
 
