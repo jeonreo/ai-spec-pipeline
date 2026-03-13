@@ -53,13 +53,14 @@ interface CardProps {
   warning: string
   stale: boolean
   specDone: boolean
+  codeAnalysisDone: boolean
   output: string
   onRun: () => void
   onOpen: () => void
   decisionsConfirmed: boolean
 }
 
-function TaskCard({ tab, runState, elapsed, tokens, warning, stale, specDone, output, onRun, onOpen, decisionsConfirmed }: CardProps) {
+function TaskCard({ tab, runState, elapsed, tokens, warning, stale, specDone, codeAnalysisDone, output, onRun, onOpen, decisionsConfirmed }: CardProps) {
   const meta      = STAGE_META[tab]
   const isDone    = runState === 'done'
   const isRunning = runState === 'running'
@@ -67,7 +68,8 @@ function TaskCard({ tab, runState, elapsed, tokens, warning, stale, specDone, ou
   const canRun = !isRunning && (
     tab === 'intake' ||
     tab === 'spec'   ||
-    (specDone && (tab === 'jira' || tab === 'qa' || tab === 'design' || tab === 'code-analysis' || tab === 'patch'))
+    (specDone && (tab === 'jira' || tab === 'qa' || tab === 'design' || tab === 'code-analysis')) ||
+    (specDone && codeAnalysisDone && tab === 'patch')
   )
   const col = getBoardCol(tab, runState, decisionsConfirmed, specDone)
 
@@ -141,6 +143,8 @@ interface BoardProps {
   decisions: string
   jiraProjectKey: string
   jiraIssueTypeName: string
+  jiraIssueKey: string
+  jiraLinkError: string
   pushResults: PushBranchResult[]
   pushCreating: boolean
   prResults: PrResult[]
@@ -161,6 +165,7 @@ const ALL_STAGES: Tab[] = ['intake', 'spec', 'jira', 'qa', 'design', 'code-analy
 export default function KanbanBoard({
   outputs, runStates, stale, elapsed, tokens, warnings,
   specDone, decisionsConfirmed, decisions, jiraProjectKey, jiraIssueTypeName,
+  jiraIssueKey, jiraLinkError,
   pushResults, pushCreating, prResults, prCreating,
   onRun, onRunParallel, onOutputChange, onDecisionsChange, onConfirmAndRun, onSkipAndRun,
   onPushBranch, onCreatePr, onJiraCreated,
@@ -219,6 +224,7 @@ export default function KanbanBoard({
                     output={outputs[tab]}
                     stale={stale[tab]}
                     specDone={specDone}
+                    codeAnalysisDone={runStates['code-analysis'] === 'done'}
                     decisionsConfirmed={decisionsConfirmed}
                     onRun={() => onRun(tab)}
                     onOpen={() => setDrawerTab(tab)}
@@ -239,6 +245,15 @@ export default function KanbanBoard({
             <span className="task-tag">github</span>
             <span className="task-tag">pr-draft</span>
             <span className="task-tag">FE + BE</span>
+            {jiraIssueKey && !jiraLinkError && (pushResults.length > 0 || prResults.length > 0) && (
+              <span className="task-tag task-tag--jira-linked">🎯 {jiraIssueKey} 연결됨</span>
+            )}
+            {jiraIssueKey && !jiraLinkError && pushResults.length === 0 && (
+              <span className="task-tag task-tag--jira-pending">🎯 {jiraIssueKey}</span>
+            )}
+            {jiraLinkError && (
+              <span className="task-tag task-tag--warn" title={jiraLinkError}>🎯 Jira 연결 실패</span>
+            )}
           </div>
           <div className="pr-agent-bar-right">
             {prResults.length > 0 ? (

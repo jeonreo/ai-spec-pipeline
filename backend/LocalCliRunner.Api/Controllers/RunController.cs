@@ -42,7 +42,9 @@ public class RunController(
         if (!ValidProfiles.Contains(profile))
             return BadRequest(new { error = $"Unknown profile: {profile}" });
 
-        var stageModel = settingsService.GetModelForStage(profile);
+        var stageModel = cliRunner is ClaudeVertexRunner
+            ? null
+            : settingsService.GetModelForStage(profile);
         var command = new RunStageCommand(request.InputText, profile, stageModel);
         var result  = handler.Enqueue(command);
 
@@ -144,15 +146,29 @@ public class RunController(
 
         var fullOutput = new StringBuilder();
 
-        var model = settingsService.GetModelForStage(profile);
+        // Vertex AI는 claude-sonnet-4-6 고정 (null → ClaudeVertexRunner.DefaultModel 사용)
+        var model = cliRunner is ClaudeVertexRunner
+            ? null
+            : settingsService.GetModelForStage(profile);
 
-        var usage = await cliRunner.StreamAsync(prompt, workspacePath, async chunk =>
+        TokenUsage? usage;
+        try
         {
-            fullOutput.Append(chunk);
-            var json = JsonSerializer.Serialize(new { chunk });
-            await Response.WriteAsync($"data: {json}\n\n", ct);
+            usage = await cliRunner.StreamAsync(prompt, workspacePath, async chunk =>
+            {
+                fullOutput.Append(chunk);
+                var json = JsonSerializer.Serialize(new { chunk });
+                await Response.WriteAsync($"data: {json}\n\n", ct);
+                await Response.Body.FlushAsync(ct);
+            }, model, ct);
+        }
+        catch (Exception ex)
+        {
+            var errJson = JsonSerializer.Serialize(new { error = ex.Message });
+            await Response.WriteAsync($"data: {errJson}\n\n", ct);
             await Response.Body.FlushAsync(ct);
-        }, model, ct);
+            return;
+        }
 
         var restored = piiTokenizer.Detokenize(fullOutput.ToString().TrimEnd(), piiMap);
 

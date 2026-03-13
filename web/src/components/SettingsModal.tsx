@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react'
 import { fetchSettings, saveSettings, type PipelineSettings } from '../api'
 
-const STAGES = ['intake', 'spec', 'jira', 'qa', 'design'] as const
+const STAGES = ['intake', 'spec', 'jira', 'qa', 'design', 'code-analysis', 'patch'] as const
 
 const STAGE_LABELS: Record<string, string> = {
-  intake: 'Intake',
-  spec:   'Spec',
-  jira:   'Jira',
-  qa:     'QA',
-  design: 'Design',
+  intake:          'Intake',
+  spec:            'Spec',
+  jira:            'Jira',
+  qa:              'QA',
+  design:          'Design',
+  'code-analysis': 'Code Analysis',
+  patch:           'Patch',
 }
 
-const MODELS = [
+const CLI_MODELS = [
   { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5 (빠름 · 저렴)' },
   { id: 'claude-sonnet-4-6',         label: 'Sonnet 4.6 (균형)' },
   { id: 'claude-opus-4-6',           label: 'Opus 4.6 (최고 품질)' },
@@ -19,9 +21,10 @@ const MODELS = [
 
 interface Props {
   onClose: () => void
+  isVertex: boolean
 }
 
-export default function SettingsModal({ onClose }: Props) {
+export default function SettingsModal({ onClose, isVertex }: Props) {
   const [settings, setSettings] = useState<PipelineSettings | null>(null)
   const [saving, setSaving]     = useState(false)
   const [saved, setSaved]       = useState(false)
@@ -33,7 +36,7 @@ export default function SettingsModal({ onClose }: Props) {
 
   function handleModelChange(stage: string, model: string) {
     if (!settings) return
-    setSettings({ stageModels: { ...settings.stageModels, [stage]: model } })
+    setSettings({ ...settings, stageModels: { ...settings.stageModels, [stage]: model } })
     setSaved(false)
   }
 
@@ -60,11 +63,15 @@ export default function SettingsModal({ onClose }: Props) {
         </div>
 
         <div className="settings-modal-body">
-          {!settings ? (
+          {isVertex ? (
+            <div className="settings-vertex-info">
+              <p className="settings-desc">Vertex AI 연결 중 — 모든 스테이지에서 <strong>claude-sonnet-4-6</strong> 고정 사용</p>
+            </div>
+          ) : !settings ? (
             <p className="settings-loading">{error || '불러오는 중…'}</p>
           ) : (
             <>
-              <p className="settings-desc">각 스테이지에서 사용할 Claude 모델을 선택하세요.</p>
+              <p className="settings-desc">로컬 CLI 실행 시 각 스테이지에서 사용할 모델을 선택하세요.</p>
               <table className="settings-table">
                 <thead>
                   <tr>
@@ -78,11 +85,11 @@ export default function SettingsModal({ onClose }: Props) {
                       <td className="settings-stage-name">{STAGE_LABELS[stage]}</td>
                       <td>
                         <select
-                          value={settings.stageModels[stage] ?? MODELS[0].id}
+                          value={settings.stageModels[stage] ?? CLI_MODELS[0].id}
                           onChange={e => handleModelChange(stage, e.target.value)}
                           className="settings-model-select"
                         >
-                          {MODELS.map(m => (
+                          {CLI_MODELS.map(m => (
                             <option key={m.id} value={m.id}>{m.label}</option>
                           ))}
                         </select>

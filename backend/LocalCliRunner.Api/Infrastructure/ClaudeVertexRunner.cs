@@ -92,20 +92,55 @@ public class ClaudeVertexRunner(
         string? line;
         while ((line = await reader.ReadLineAsync(ct)) != null)
         {
-            if (!line.StartsWith("data: ")) continue;
+            if (string.IsNullOrWhiteSpace(line)) continue;
 
-            var json = line[6..].Trim();
-            if (json == "[DONE]") break;
-            if (string.IsNullOrEmpty(json)) continue;
+            // SSE 형식: "data: {...}"
+            // NDJSON 형식: "{...}" (Vertex AI streamRawPredict가 반환하는 형식)
+            string json;
+            if (line.StartsWith("data: "))
+            {
+                json = line[6..].Trim();
+                if (json == "[DONE]") break;
+                if (string.IsNullOrEmpty(json)) continue;
+            }
+            else
+            {
+                json = line.Trim();
+            }
 
             try
             {
-                using var doc  = JsonDocument.Parse(json);
-                var root       = doc.RootElement;
-                var type       = root.GetProperty("type").GetString();
+                using var doc = JsonDocument.Parse(json);
+                var root      = doc.RootElement;
+
+                if (!root.TryGetProperty("type", out var typeProp)) continue;
+                var type = typeProp.GetString();
 
                 switch (type)
                 {
+                    // Vertex AI NDJSON: 완성된 메시지 한 번에 반환
+                    case "message":
+                        if (root.TryGetProperty("content", out var contentArr))
+                        {
+                            foreach (var block in contentArr.EnumerateArray())
+                            {
+                                if (block.TryGetProperty("type", out var bt) && bt.GetString() == "text" &&
+                                    block.TryGetProperty("text", out var bt2))
+                                {
+                                    var text = bt2.GetString();
+                                    if (!string.IsNullOrEmpty(text))
+                                        await onChunk(text);
+                                }
+                            }
+                        }
+                        if (root.TryGetProperty("usage", out var msgUsage))
+                        {
+                            if (msgUsage.TryGetProperty("input_tokens",  out var ip)) inputTokens  = ip.GetInt32();
+                            if (msgUsage.TryGetProperty("output_tokens", out var op)) outputTokens = op.GetInt32();
+                        }
+                        break;
+
+                    // 표준 Anthropic SSE 스트리밍 이벤트
                     case "content_block_delta":
                         if (root.TryGetProperty("delta", out var delta) &&
                             delta.TryGetProperty("type", out var deltaType) &&
@@ -138,7 +173,7 @@ public class ClaudeVertexRunner(
             }
             catch (JsonException ex)
             {
-                logger.LogWarning(ex, "Failed to parse SSE line: {Line}", json);
+                logger.LogWarning(ex, "Failed to parse line: {Line}", json);
             }
         }
 

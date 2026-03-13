@@ -14,6 +14,7 @@ public class GitHubSettings
 
 public class PipelineSettings
 {
+    /// <summary>로컬 CLI (claude CLI) 사용 시 모델 ID — Anthropic API 형식. Vertex AI는 appsettings의 Vertex:DefaultModel 고정.</summary>
     [JsonPropertyName("stageModels")]
     public Dictionary<string, string> StageModels { get; set; } = new()
     {
@@ -77,6 +78,7 @@ public class SettingsService
             return "claude-haiku-4-5-20251001";
         }
     }
+
 
     private PipelineSettings Load()
     {

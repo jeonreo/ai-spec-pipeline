@@ -61,6 +61,9 @@ export async function streamStage(
         flushAccumulated()
         return { output: data.output, warning: data.warning ?? undefined, tokens: data.tokens ?? undefined }
       }
+      if (data.error) {
+        throw new Error(data.error)
+      }
       if (data.chunk) {
         accumulated += data.chunk
         scheduleFlush()
@@ -153,13 +156,15 @@ export async function fetchJiraIssueTypes(projectKey: string): Promise<JiraIssue
 }
 
 export async function addJiraRemoteLink(issueKey: string, url: string, title: string): Promise<void> {
-  try {
-    await fetch(`/api/jira/${issueKey}/remotelink`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, title }),
-    })
-  } catch { /* non-blocking */ }
+  const res = await fetch(`/api/jira/${issueKey}/remotelink`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, title }),
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data.error ?? `Jira 링크 추가 실패 (${res.status})`)
+  }
 }
 
 export async function createJiraTicket(payload: {
@@ -298,6 +303,7 @@ export interface GitHubSettings {
 export interface PipelineSettings {
   stageModels: Record<string, string>
   github: GitHubSettings
+  isVertex?: boolean
 }
 
 export async function fetchSettings(): Promise<PipelineSettings> {

@@ -5,11 +5,16 @@ namespace LocalCliRunner.Api.Controllers;
 
 [ApiController]
 [Route("api/settings")]
-public class SettingsController(SettingsService settingsService) : ControllerBase
+public class SettingsController(SettingsService settingsService, ICliRunner cliRunner) : ControllerBase
 {
     // GET /api/settings
     [HttpGet]
-    public IActionResult Get() => Ok(settingsService.Get());
+    public IActionResult Get()
+    {
+        var settings = settingsService.Get();
+        var isVertex = cliRunner is ClaudeVertexRunner;
+        return Ok(new { stageModels = settings.StageModels, github = settings.GitHub, isVertex });
+    }
 
     // PUT /api/settings
     [HttpPut]

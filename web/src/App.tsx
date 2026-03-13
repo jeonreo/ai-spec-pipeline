@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, startTransition } from 'react'
-import { streamStage, fetchPolicy, TokenUsage, pushBranch, createPullRequest, addJiraRemoteLink, PushBranchResult, PrResult } from './api'
+import { useState, useEffect, useRef } from 'react'
+import { streamStage, fetchPolicy, fetchSettings, TokenUsage, pushBranch, createPullRequest, addJiraRemoteLink, PushBranchResult, PrResult } from './api'
 import SourcePanel from './components/SourcePanel'
 import KanbanBoard from './components/KanbanBoard'
 import HistoryPanel from './components/HistoryPanel'
@@ -125,6 +125,7 @@ export default function App() {
   const [jiraIssueTypeName, setJiraIssueTypeName] = useState<string>(_saved?.jiraIssueTypeName ?? '')
   const [projectKnowledge, setProjectKnowledge] = useState<string>(_saved?.projectKnowledge ?? '')
   const [jiraIssueKey, setJiraIssueKey] = useState<string>(_saved?.jiraIssueKey ?? '')
+  const [jiraLinkError, setJiraLinkError] = useState<string>('')
   const [pushResults, setPushResults]   = useState<PushBranchResult[]>(_saved?.pushResults ?? [])
   const [pushCreating, setPushCreating] = useState(false)
   const [prResults, setPrResults]       = useState<PrResult[]>(_saved?.prResults ?? [])
@@ -133,12 +134,18 @@ export default function App() {
   const [policyOpen, setPolicyOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [isVertex, setIsVertex]         = useState(false)
 
   const stageContext: Context = { input, outputs, decisions }
   const currentInputSignatures = buildStageInputSignatures(stageContext)
   const stale = buildStaleFlags(runStates, currentInputSignatures, completedInputSignatures)
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Fetch runner type on mount
+  useEffect(() => {
+    fetchSettings().then(s => { if (s.isVertex) setIsVertex(true) }).catch(() => {})
+  }, [])
 
   // Auto-save session to localStorage (500ms debounce, 출력 100KB 초과 시 저장 생략)
   useEffect(() => {
@@ -210,9 +217,7 @@ export default function App() {
 
     try {
       const result = await streamStage(tab, inputText, outputs, (accumulated) => {
-        startTransition(() => {
-          setOutputs(prev => ({ ...prev, [tab]: accumulated }))
-        })
+        setOutputs(prev => ({ ...prev, [tab]: accumulated }))
       })
 
       const elapsedSec = (Date.now() - startedAt) / 1000
@@ -285,8 +290,15 @@ export default function App() {
       })
       setPushResults(results)
       if (jiraIssueKey) {
-        results.filter(r => r.branchUrl).forEach(r =>
-          addJiraRemoteLink(jiraIssueKey, r.branchUrl!, `AI Draft Branch (${r.label.toUpperCase()})`))
+        setJiraLinkError('')
+        try {
+          await Promise.all(
+            results.filter(r => r.branchUrl).map(r =>
+              addJiraRemoteLink(jiraIssueKey, r.branchUrl!, `AI Draft Branch (${r.label.toUpperCase()})`))
+          )
+        } catch (e) {
+          setJiraLinkError(e instanceof Error ? e.message : 'Jira 링크 추가 실패')
+        }
       }
     } catch (e) {
       alert(e instanceof Error ? e.message : '브랜치 푸시 실패')
@@ -316,8 +328,15 @@ export default function App() {
       })
       setPrResults(results)
       if (jiraIssueKey) {
-        results.filter(r => r.prUrl).forEach(r =>
-          addJiraRemoteLink(jiraIssueKey, r.prUrl!, `AI Draft PR (${r.label.toUpperCase()})`))
+        setJiraLinkError('')
+        try {
+          await Promise.all(
+            results.filter(r => r.prUrl).map(r =>
+              addJiraRemoteLink(jiraIssueKey, r.prUrl!, `AI Draft PR (${r.label.toUpperCase()})`))
+          )
+        } catch (e) {
+          setJiraLinkError(e instanceof Error ? e.message : 'Jira 링크 추가 실패')
+        }
       }
     } catch (e) {
       alert(e instanceof Error ? e.message : 'PR 생성 실패')
@@ -388,7 +407,7 @@ export default function App() {
       </header>
 
       {settingsOpen && (
-        <SettingsModal onClose={() => setSettingsOpen(false)} />
+        <SettingsModal onClose={() => setSettingsOpen(false)} isVertex={isVertex} />
       )}
 
       {historyOpen && (
@@ -442,6 +461,8 @@ export default function App() {
           decisions={decisions}
           jiraProjectKey={jiraProjectKey}
           jiraIssueTypeName={jiraIssueTypeName}
+          jiraIssueKey={jiraIssueKey}
+          jiraLinkError={jiraLinkError}
           pushResults={pushResults}
           pushCreating={pushCreating}
           prResults={prResults}
