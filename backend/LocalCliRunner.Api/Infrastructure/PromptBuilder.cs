@@ -14,15 +14,21 @@ public class PromptBuilder(IConfiguration config)
         ["design"] = "Output only a valid Design Package v1 JSON object without markdown fences, HTML, or commentary.",
     };
 
-    private static readonly HashSet<string> PolicyProfiles = ["spec"];
+    private static readonly HashSet<string> PolicyProfiles = ["spec", "jira"];
 
     public async Task<string> BuildAsync(string profile, string inputText)
     {
         var baseMd = await ReadPromptAsync("base.system.md");
         var skillMd = await ReadSkillAsync(profile, "SKILL.md");
-        var templateMd = await TryReadSkillAsync(profile, "template.md");
         var header = TaskHeaders.GetValueOrDefault(profile, $"Output only the {profile} document.");
 
+        if (profile == "policy-update")
+        {
+            var policyMd = await ReadPromptAsync("policy.md");
+            return $"{header}\n\n---\n\n{baseMd}\n\n---\n\n{skillMd}\n\n---\n\n## 현재 정책\n\n{policyMd}\n\n---\n\n## 새 결정사항\n\n{inputText}";
+        }
+
+        var templateMd = await TryReadSkillAsync(profile, "template.md");
         var templateSection = templateMd is not null
             ? $"\n\n---\n\n## Output Template Reference\nUse the following structure as the reference schema for your output.\n\n{templateMd}"
             : string.Empty;
@@ -37,6 +43,8 @@ public class PromptBuilder(IConfiguration config)
     }
 
     public Task<string> ReadPolicyAsync() => ReadPromptAsync("policy.md");
+
+    public string GetPolicyPath() => Path.Combine(_promptsDir, "policy.md");
 
     public string GetVerifyScriptPath(string profile)
     {

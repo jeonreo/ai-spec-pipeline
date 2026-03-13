@@ -9,6 +9,13 @@ public class GitCommitService(IConfiguration config, ILogger<GitCommitService> l
     private readonly string _repoPath = Path.GetFullPath(
         config["Git:RepoPath"] ?? Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
 
+    public async Task CommitFileAsync(string repoRelativePath, string message)
+    {
+        var normalized = repoRelativePath.Replace('\\', '/');
+        await RunGitAsync("add", normalized);
+        await RunGitAsync("commit", "-m", message);
+    }
+
     public async Task AppendAndCommitAsync(string profile, string content)
     {
         if (!MdProfiles.Contains(profile)) return;

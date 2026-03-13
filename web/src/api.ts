@@ -321,3 +321,12 @@ export async function saveSettings(settings: PipelineSettings): Promise<Pipeline
   if (!res.ok) throw new Error()
   return res.json()
 }
+
+export async function updatePolicy(decisions: string): Promise<void> {
+  const res = await fetch('/api/policy/update', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ decisions }),
+  })
+  if (!res.ok) throw new Error(`정책 업데이트 실패: ${res.status}`)
+}

@@ -1,7 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Tab, RunState } from '../App'
 import JiraView from './JiraView'
 import DesignPackageView from './DesignPackageView'
+import { updatePolicy } from '../api'
 
 interface Props {
   tab: Tab
@@ -193,6 +194,26 @@ export default function CardDetailDrawer({
   const isFailed  = runState === 'failed'
   const canRun    = !isRunning && (tab === 'intake' || tab === 'spec' || specDone)
 
+  const [policyUpdating, setPolicyUpdating] = useState(false)
+  const [policyMsg, setPolicyMsg] = useState<string | null>(null)
+
+  const canUpdatePolicy = isDone && output && (tab === 'intake' || tab === 'spec')
+
+  async function handlePolicyUpdate() {
+    if (!output) return
+    setPolicyUpdating(true)
+    setPolicyMsg(null)
+    try {
+      await updatePolicy(output)
+      setPolicyMsg('정책 반영 완료')
+    } catch {
+      setPolicyMsg('반영 실패')
+    } finally {
+      setPolicyUpdating(false)
+      setTimeout(() => setPolicyMsg(null), 3000)
+    }
+  }
+
   // ESC to close
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -267,6 +288,16 @@ export default function CardDetailDrawer({
             </span>
             {elapsed !== null && <span className="drawer-elapsed">{elapsed.toFixed(1)}s</span>}
             {warning && <span className="drawer-warning" title={warning}>⚠ {warning}</span>}
+            {canUpdatePolicy && (
+              <button
+                className="btn-policy-update"
+                onClick={handlePolicyUpdate}
+                disabled={policyUpdating}
+                title="현재 결과물을 policy.md에 반영"
+              >
+                {policyUpdating ? '반영 중...' : policyMsg ?? '📌 정책 반영'}
+              </button>
+            )}
             <button
               className={`btn-drawer-run${isRunning ? ' btn-drawer-run--running' : isFailed ? ' btn-drawer-run--failed' : isDone ? ' btn-drawer-run--done' : ''}`}
               onClick={onRun}
