@@ -10,6 +10,7 @@ builder.Services.AddControllers();
 builder.Services.AddSingleton<JobRegistry>();
 builder.Services.AddSingleton<PiiTokenizer>();
 builder.Services.AddSingleton<JiraService>();
+builder.Services.AddSingleton<GitCommitService>();
 builder.Services.AddSingleton<SettingsService>();
 
 builder.Services.AddHttpClient(); // IHttpClientFactory for ClaudeVertexRunner + GitHubService

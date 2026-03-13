@@ -17,3 +17,5 @@ backend/LocalCliRunner.Api/pipeline-settings.json
 .tmp-build/
 
 .env
+AI_Spec_Pipeline.pptx
+scripts/gen_ppt.py

@@ -10,6 +10,7 @@ public class RunStageHandler(
     WorkspaceManager workspaceManager,
     JobRegistry      jobRegistry,
     PiiTokenizer     piiTokenizer,
+    GitCommitService gitCommitService,
     ILogger<RunStageHandler> logger)
 {
     private static readonly Dictionary<string, string> OutputFiles = new()
@@ -75,6 +76,9 @@ public class RunStageHandler(
             // Write output (복원된 결과 저장)
             var outPath = layout.OutputFile(job.OutputFile!);
             await File.WriteAllTextAsync(outPath, restoredOutput);
+
+            // Git docs append & commit (md 프로파일만)
+            _ = gitCommitService.AppendAndCommitAsync(command.Profile, restoredOutput);
 
             // Write log
             await File.WriteAllTextAsync(layout.LogFile, result.Stderr);
