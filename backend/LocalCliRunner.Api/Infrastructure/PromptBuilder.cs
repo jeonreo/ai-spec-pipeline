@@ -15,6 +15,7 @@ public class PromptBuilder(IConfiguration config)
     };
 
     private static readonly HashSet<string> PolicyProfiles = ["spec", "jira"];
+    private static readonly HashSet<string> ArchitectureProfiles = ["spec", "code-analysis", "patch"];
 
     public async Task<string> BuildAsync(string profile, string inputText)
     {
@@ -33,13 +34,25 @@ public class PromptBuilder(IConfiguration config)
             ? $"\n\n---\n\n## Output Template Reference\nUse the following structure as the reference schema for your output.\n\n{templateMd}"
             : string.Empty;
 
+        var architectureSection = string.Empty;
+        if (ArchitectureProfiles.Contains(profile))
+        {
+            var feArch = await TryReadContextAsync("fe-architecture.md");
+            var beArch = await TryReadContextAsync("be-architecture.md");
+            var parts = new List<string>();
+            if (beArch is not null) parts.Add(beArch);
+            if (feArch is not null) parts.Add(feArch);
+            if (parts.Count > 0)
+                architectureSection = $"\n\n---\n\n## 코드베이스 아키텍처\n\n{string.Join("\n\n", parts)}";
+        }
+
         if (PolicyProfiles.Contains(profile))
         {
             var policyMd = await ReadPromptAsync("policy.md");
-            return $"{header}\n\n---\n\n{baseMd}\n\n---\n\n{policyMd}\n\n---\n\n{skillMd}{templateSection}\n\n---\n\n## Input\n\n{inputText}";
+            return $"{header}\n\n---\n\n{baseMd}\n\n---\n\n{policyMd}{architectureSection}\n\n---\n\n{skillMd}{templateSection}\n\n---\n\n## Input\n\n{inputText}";
         }
 
-        return $"{header}\n\n---\n\n{baseMd}\n\n---\n\n{skillMd}{templateSection}\n\n---\n\n## Input\n\n{inputText}";
+        return $"{header}\n\n---\n\n{baseMd}{architectureSection}\n\n---\n\n{skillMd}{templateSection}\n\n---\n\n## Input\n\n{inputText}";
     }
 
     public Task<string> ReadPolicyAsync() => ReadPromptAsync("policy.md");
@@ -75,4 +88,16 @@ public class PromptBuilder(IConfiguration config)
 
     private Task<string> ReadPromptAsync(string filename) =>
         File.ReadAllTextAsync(Path.Combine(_promptsDir, filename));
+
+    private async Task<string?> TryReadContextAsync(string filename)
+    {
+        try
+        {
+            return await File.ReadAllTextAsync(Path.Combine(_promptsDir, "context", filename));
+        }
+        catch
+        {
+            return null;
+        }
+    }
 }
