@@ -16,7 +16,7 @@ public record SlackExtractResult(string Text, IReadOnlyList<SlackFile> Files);
 public class SlackService(IConfiguration config, IHttpClientFactory httpFactory)
 {
     private string BotToken =>
-        Environment.GetEnvironmentVariable("SLACK__BOTTOKEN") ??
+        Environment.GetEnvironmentVariable("Slack__BotToken") ??
         config["Slack:BotToken"] ?? "";
 
     public bool IsConfigured => !string.IsNullOrEmpty(BotToken);

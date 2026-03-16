@@ -43,6 +43,15 @@
 - 입력에 없는 내용은 절대 추가하지 않음, 불확실한 항목은 `확인 필요` 표시
 - **Q./A. 형식**으로 미결 항목 자동 추출 → 답변 후 다음 단계로
 
+**입력 방식 2가지:**
+
+| 방식 | 설명 |
+|------|------|
+| 직접 입력 | 텍스트 자유 입력 + 이미지 첨부 (PNG/JPG/WebP, 최대 5MB) |
+| Slack 링크 | Slack 메시지 URL 입력 → 본문·스레드·첨부파일 자동 수집 |
+
+이미지 첨부 시 LLM이 와이어프레임·스크린샷 등을 직접 분석합니다. Slack에서 수집한 파일은 Jira 티켓 생성 시 자동 첨부됩니다.
+
 ---
 
 ### Step 2 — Spec: 단일 진실 공급원 (`Sonnet`)
@@ -159,10 +168,12 @@ PM: admin 역할만 접근 가능하게요. 일반 사용자는 403이요.
 ```
 Jira__ApiToken=your_jira_api_token
 GitHub__Token=your_github_personal_access_token
+Slack__BotToken=xoxb-your-slack-bot-token   # 선택 — Slack 링크 파싱 사용 시
 ```
 
 - Jira 토큰: https://id.atlassian.com/manage-profile/security/api-tokens
 - GitHub 토큰: https://github.com/settings/tokens (`repo` 스코프 필요)
+- Slack Bot Token: https://api.slack.com/apps → OAuth & Permissions (필요 스코프: `channels:history`, `groups:history`, `files:read`)
 
 > **보안**: 토큰은 반드시 `.env`에만 보관하세요. `appsettings.Development.json`에 토큰을 넣지 마세요 — git 커밋 시 노출됩니다.
 
@@ -300,3 +311,9 @@ claude --help
 ```bash
 gcloud auth application-default login
 ```
+
+**Slack `invalid_auth`** — `.env`의 `Slack__BotToken` 값이 잘렸거나 만료됨. api.slack.com/apps에서 Bot User OAuth Token 전체를 복사해 교체.
+
+**Slack `not_in_channel`** — 봇을 해당 채널에 초대 (`/invite @봇이름`) 후 재시도.
+
+**이미지 분석 미작동** — Vertex AI 모드에서만 완전 지원. Claude CLI 모드는 `--file` 플래그 전달 (CLI 버전에 따라 지원 여부 상이).

@@ -18,7 +18,7 @@ public class SlackController(SlackService slackService) : ControllerBase
     public async Task<IActionResult> Extract([FromBody] SlackExtractRequest req, CancellationToken ct)
     {
         if (!slackService.IsConfigured)
-            return BadRequest(new { error = "Slack Bot Token이 설정되지 않았습니다. .env 파일에 SLACK__BOTTOKEN을 추가하세요." });
+            return BadRequest(new { error = "Slack Bot Token이 설정되지 않았습니다. .env 파일에 Slack__BotToken을 추가하세요." });
 
         try
         {
