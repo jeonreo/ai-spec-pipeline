@@ -15,7 +15,7 @@ public class GeminiVertexRunner(IConfiguration config, ILogger<GeminiVertexRunne
     private string Location     => config["Vertex:Location"]     ?? "us-central1";
     private string DefaultModel => config["Vertex:DefaultModel"] ?? "gemini-2.0-flash-001";
 
-    public async Task<CliResult> RunAsync(string promptContent, string workspacePath, string? model = null, CancellationToken ct = default)
+    public async Task<CliResult> RunAsync(string promptContent, string workspacePath, string? model = null, IReadOnlyList<string>? imagePaths = null, CancellationToken ct = default)
     {
         var modelId = model ?? DefaultModel;
         logger.LogInformation("Vertex AI call: project={Project}, location={Location}, model={Model}", ProjectId, Location, modelId);
@@ -38,7 +38,7 @@ public class GeminiVertexRunner(IConfiguration config, ILogger<GeminiVertexRunne
         }
     }
 
-    public async Task<TokenUsage?> StreamAsync(string promptContent, string workspacePath, Func<string, Task> onChunk, string? model = null, CancellationToken ct = default)
+    public async Task<TokenUsage?> StreamAsync(string promptContent, string workspacePath, Func<string, Task> onChunk, string? model = null, IReadOnlyList<string>? imagePaths = null, CancellationToken ct = default)
     {
         var modelId = model ?? DefaultModel;
         logger.LogInformation("Vertex AI stream: project={Project}, location={Location}, model={Model}", ProjectId, Location, modelId);

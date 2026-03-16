@@ -67,6 +67,31 @@ public class JiraController(JiraService jiraService) : ControllerBase
         }
     }
 
+    // POST /api/jira/{issueKey}/attach — 바이너리 파일을 Jira 티켓에 첨부
+    [HttpPost("{issueKey}/attach")]
+    [RequestSizeLimit(50_000_000)]
+    public async Task<IActionResult> AttachFiles(string issueKey)
+    {
+        if (!jiraService.IsConfigured)
+            return BadRequest(new { error = "Jira 연동 설정이 없습니다." });
+        try
+        {
+            var files = Request.Form.Files;
+            foreach (var file in files)
+            {
+                using var ms = new MemoryStream();
+                await file.CopyToAsync(ms);
+                var mimeType = file.ContentType ?? "application/octet-stream";
+                await jiraService.AttachBinaryAsync(issueKey, file.FileName, ms.ToArray(), mimeType);
+            }
+            return Ok(new { attached = files.Count });
+        }
+        catch (HttpRequestException ex)
+        {
+            return StatusCode(502, new { error = $"Jira API 오류: {ex.Message}" });
+        }
+    }
+
     // POST /api/jira/create
     [HttpPost("create")]
     public async Task<IActionResult> Create([FromBody] CreateIssueRequest request)

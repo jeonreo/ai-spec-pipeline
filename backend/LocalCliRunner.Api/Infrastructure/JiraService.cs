@@ -167,14 +167,13 @@ public class JiraService
         res.EnsureSuccessStatusCode();
     }
 
-    private async Task AttachFileAsync(string issueKey, string filename, string text)
+    public async Task AttachBinaryAsync(string issueKey, string filename, byte[] bytes, string mimeType)
     {
         var url = $"{_config.BaseUrl.TrimEnd('/')}/rest/api/3/issue/{issueKey}/attachments";
 
-        using var form = new MultipartFormDataContent();
-        var bytes       = Encoding.UTF8.GetBytes(text);
+        using var form  = new MultipartFormDataContent();
         var fileContent = new ByteArrayContent(bytes);
-        fileContent.Headers.ContentType = new MediaTypeHeaderValue("text/markdown");
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue(mimeType);
         form.Add(fileContent, "file", filename);
 
         var req = new HttpRequestMessage(HttpMethod.Post, url)
@@ -183,6 +182,12 @@ public class JiraService
             Content = form,
         };
         (await _http.SendAsync(req)).EnsureSuccessStatusCode();
+    }
+
+    private async Task AttachFileAsync(string issueKey, string filename, string text)
+    {
+        var bytes = Encoding.UTF8.GetBytes(text);
+        await AttachBinaryAsync(issueKey, filename, bytes, "text/markdown");
     }
 
     /// <summary>jira.json description 오브젝트 + AC → Atlassian Document Format(ADF)</summary>

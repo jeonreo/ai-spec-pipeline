@@ -21,7 +21,7 @@ public class ClaudeVertexRunner(
     private string DefaultModel => config["Vertex:DefaultModel"] ?? "claude-sonnet-4-6";
     private int MaxTokens       => int.TryParse(config["Vertex:MaxTokens"], out var n) ? n : 8192;
 
-    public async Task<CliResult> RunAsync(string promptContent, string workspacePath, string? model = null, CancellationToken ct = default)
+    public async Task<CliResult> RunAsync(string promptContent, string workspacePath, string? model = null, IReadOnlyList<string>? imagePaths = null, CancellationToken ct = default)
     {
         var modelId = model ?? DefaultModel;
         logger.LogInformation("Vertex AI Claude call: project={Project}, location={Location}, model={Model}", ProjectId, Location, modelId);
@@ -30,7 +30,7 @@ public class ClaudeVertexRunner(
         {
             var token   = await GetTokenAsync();
             var url     = BuildUrl(modelId, stream: false);
-            var body    = BuildBody(promptContent);
+            var body    = BuildBody(promptContent, imagePaths);
 
             using var client   = httpFactory.CreateClient();
             using var request  = new HttpRequestMessage(HttpMethod.Post, url);
@@ -61,14 +61,14 @@ public class ClaudeVertexRunner(
         }
     }
 
-    public async Task<TokenUsage?> StreamAsync(string promptContent, string workspacePath, Func<string, Task> onChunk, string? model = null, CancellationToken ct = default)
+    public async Task<TokenUsage?> StreamAsync(string promptContent, string workspacePath, Func<string, Task> onChunk, string? model = null, IReadOnlyList<string>? imagePaths = null, CancellationToken ct = default)
     {
         var modelId = model ?? DefaultModel;
         logger.LogInformation("Vertex AI Claude stream: project={Project}, location={Location}, model={Model}", ProjectId, Location, modelId);
 
         var token  = await GetTokenAsync();
         var url    = BuildUrl(modelId, stream: true);
-        var body   = BuildBody(promptContent);
+        var body   = BuildBody(promptContent, imagePaths);
 
         using var client  = httpFactory.CreateClient();
         using var request = new HttpRequestMessage(HttpMethod.Post, url);
@@ -197,15 +197,48 @@ public class ClaudeVertexRunner(
         return $"https://{host}/v1/projects/{ProjectId}/locations/{Location}/publishers/anthropic/models/{modelId}:{action}";
     }
 
-    private string BuildBody(string promptContent)
+    private string BuildBody(string promptContent, IReadOnlyList<string>? imagePaths = null)
     {
-        var payload = new
+        if (imagePaths?.Count > 0)
         {
-            anthropic_version = "vertex-2023-10-16",
-            messages = new[] { new { role = "user", content = promptContent } },
-            max_tokens = MaxTokens,
-        };
-        return JsonSerializer.Serialize(payload);
+            var contentBlocks = new List<object>();
+            foreach (var path in imagePaths)
+            {
+                var bytes     = File.ReadAllBytes(path);
+                var ext       = Path.GetExtension(path).ToLowerInvariant();
+                var mediaType = ext switch
+                {
+                    ".jpg" or ".jpeg" => "image/jpeg",
+                    ".webp"           => "image/webp",
+                    ".gif"            => "image/gif",
+                    _                 => "image/png",
+                };
+                contentBlocks.Add(new
+                {
+                    type   = "image",
+                    source = new { type = "base64", media_type = mediaType, data = Convert.ToBase64String(bytes) },
+                });
+            }
+            contentBlocks.Add(new { type = "text", text = promptContent });
+
+            var payload = new
+            {
+                anthropic_version = "vertex-2023-10-16",
+                messages          = new[] { new { role = "user", content = contentBlocks.ToArray() } },
+                max_tokens        = MaxTokens,
+            };
+            return JsonSerializer.Serialize(payload);
+        }
+        else
+        {
+            var payload = new
+            {
+                anthropic_version = "vertex-2023-10-16",
+                messages          = new[] { new { role = "user", content = promptContent } },
+                max_tokens        = MaxTokens,
+            };
+            return JsonSerializer.Serialize(payload);
+        }
     }
 
     private static string ExtractText(JsonElement root)

@@ -12,6 +12,7 @@ builder.Services.AddSingleton<PiiTokenizer>();
 builder.Services.AddSingleton<JiraService>();
 builder.Services.AddSingleton<GitCommitService>();
 builder.Services.AddSingleton<SettingsService>();
+builder.Services.AddSingleton<SlackService>();
 
 builder.Services.AddHttpClient(); // IHttpClientFactory for ClaudeVertexRunner + GitHubService
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { streamStage, fetchPolicy, fetchSettings, TokenUsage, pushBranch, createPullRequest, addJiraRemoteLink, PushBranchResult, PrResult } from './api'
+import { streamStage, streamStageWithFiles, fetchPolicy, fetchSettings, TokenUsage, pushBranch, createPullRequest, addJiraRemoteLink, PushBranchResult, PrResult } from './api'
 import SourcePanel from './components/SourcePanel'
 import KanbanBoard from './components/KanbanBoard'
 import HistoryPanel from './components/HistoryPanel'
@@ -197,7 +197,7 @@ export default function App() {
     setErrors(prev => ({ ...prev, [tab]: msg }))
   }
 
-  async function handleRun(tab: Tab, inputOverride?: string): Promise<string | null> {
+  async function handleRun(tab: Tab, inputOverride?: string, files?: File[]): Promise<string | null> {
     const inputText = inputOverride ?? STAGE_INPUT[tab](stageContext)
     const inputSignature = currentInputSignatures[tab]
     if (!inputText.trim()) {
@@ -216,9 +216,10 @@ export default function App() {
     const startedAt = Date.now()
 
     try {
-      const result = await streamStage(tab, inputText, outputs, (accumulated) => {
-        setOutputs(prev => ({ ...prev, [tab]: accumulated }))
-      })
+      const stream = files?.length
+        ? streamStageWithFiles(tab, inputText, outputs, files, accumulated => setOutputs(prev => ({ ...prev, [tab]: accumulated })))
+        : streamStage(tab, inputText, outputs, accumulated => setOutputs(prev => ({ ...prev, [tab]: accumulated })))
+      const result = await stream
 
       const elapsedSec = (Date.now() - startedAt) / 1000
       setOutputs(prev => ({ ...prev, [tab]: result.output }))
@@ -436,6 +437,7 @@ export default function App() {
             input={input}
             onInputChange={setInput}
             onRun={handleRun}
+            onRunWithFiles={(tab, files) => handleRun(tab, undefined, files)}
             runStates={runStates}
             stale={stale}
             jiraProjectKey={jiraProjectKey}
@@ -445,6 +447,7 @@ export default function App() {
             onProjectKnowledgeChange={setProjectKnowledge}
             decisions={decisions}
             intakeOutput={outputs.intake}
+            isVertex={isVertex}
           />
         </div>
 

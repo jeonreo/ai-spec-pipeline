@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import {
-  fetchJiraStatus, fetchJiraProjects, fetchJiraIssueTypes, createJiraTicket,
+  fetchJiraStatus, fetchJiraProjects, fetchJiraIssueTypes, createJiraTicket, attachSlackFilesToJira,
   JiraProject, JiraIssueType, JiraStatus, CreateJiraResult,
 } from '../api'
+import { slackStore } from '../slackStore'
 
 interface JiraData {
   summary: string
@@ -61,6 +62,7 @@ export default function JiraView({ content, onChange, specContent, initialProjec
   const [selectedType, setSelectedType] = useState('')
   const [createError, setCreateError] = useState('')
   const [result, setResult] = useState<CreateJiraResult | null>(null)
+  const slackFileCount = slackStore.count()
 
   // 마운트 시 status → 프로젝트 → 이슈유형 순서로 로드, 기본값으로 pre-select
   useEffect(() => {
@@ -147,6 +149,18 @@ export default function JiraView({ content, onChange, specContent, initialProjec
         acceptanceCriteria: data.acceptance_criteria ?? [],
         specContent,
       })
+
+      // Slack 첨부파일이 있으면 티켓 생성 후 자동으로 첨부
+      const slackFiles = slackStore.get()
+      if (slackFiles.length > 0) {
+        try {
+          await attachSlackFilesToJira(res.key, slackFiles)
+          slackStore.clear()
+        } catch {
+          // 첨부 실패는 티켓 생성 성공에 영향 없음 — 무시
+        }
+      }
+
       setResult(res)
       setFormState('done')
       onCreated?.(res.key)
@@ -228,6 +242,11 @@ export default function JiraView({ content, onChange, specContent, initialProjec
               <span className={specContent ? 'jira-preview-chip jira-preview-chip--spec' : 'jira-preview-chip jira-preview-chip--spec-empty'}>
                 {specContent ? 'spec.md 첨부' : 'spec.md 없음'}
               </span>
+              {slackFileCount > 0 && (
+                <span className="jira-preview-chip jira-preview-chip--slack">
+                  Slack 파일 {slackFileCount}개 첨부
+                </span>
+              )}
               {createError && <span className="jira-preview-error">{createError}</span>}
               <button
                 className="btn-jira-submit"

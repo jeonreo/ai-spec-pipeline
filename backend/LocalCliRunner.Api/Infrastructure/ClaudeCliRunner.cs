@@ -10,16 +10,19 @@ namespace LocalCliRunner.Api.Infrastructure;
 /// </summary>
 public class ClaudeCliRunner(IConfiguration config, ILogger<ClaudeCliRunner> logger) : ICliRunner
 {
-    private string BuildArgs(string? model)
+    private string BuildArgs(string? model, IReadOnlyList<string>? imagePaths = null)
     {
         var effectiveModel = model ?? config["Cli:DefaultModel"] ?? "claude-haiku-4-5-20251001";
-        return $"-p --model {effectiveModel} -";
+        var fileParts = imagePaths?.Count > 0
+            ? string.Join(" ", imagePaths.Select(p => $"--file \"{p.Replace("\\", "/")}\"")) + " "
+            : "";
+        return $"-p --model {effectiveModel} {fileParts}-";
     }
 
-    public async Task<CliResult> RunAsync(string promptContent, string workspacePath, string? model = null, CancellationToken ct = default)
+    public async Task<CliResult> RunAsync(string promptContent, string workspacePath, string? model = null, IReadOnlyList<string>? imagePaths = null, CancellationToken ct = default)
     {
         var command    = config["Cli:Command"] ?? "claude";
-        var args       = BuildArgs(model);
+        var args       = BuildArgs(model, imagePaths);
         var timeoutSec = int.TryParse(config["Cli:TimeoutSeconds"], out var t) ? t : 120;
 
         var psi = new ProcessStartInfo
@@ -62,11 +65,11 @@ public class ClaudeCliRunner(IConfiguration config, ILogger<ClaudeCliRunner> log
         return new CliResult(process.ExitCode, stdoutSb.ToString().TrimEnd(), stderrSb.ToString().TrimEnd());
     }
 
-    public async Task<TokenUsage?> StreamAsync(string promptContent, string workspacePath, Func<string, Task> onChunk, string? model = null, CancellationToken ct = default)
+    public async Task<TokenUsage?> StreamAsync(string promptContent, string workspacePath, Func<string, Task> onChunk, string? model = null, IReadOnlyList<string>? imagePaths = null, CancellationToken ct = default)
     {
         var command    = config["Cli:Command"] ?? "claude";
         var effectiveModel = model ?? config["Cli:DefaultModel"] ?? "claude-haiku-4-5-20251001";
-        var args       = $"-p --model {effectiveModel} -";
+        var args       = BuildArgs(effectiveModel, imagePaths);
         var timeoutSec = int.TryParse(config["Cli:TimeoutSeconds"], out var t) ? t : 300;
 
         var psi = new ProcessStartInfo

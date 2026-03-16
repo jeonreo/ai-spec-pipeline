@@ -160,7 +160,7 @@ public class RunController(
                 var json = JsonSerializer.Serialize(new { chunk });
                 await Response.WriteAsync($"data: {json}\n\n", ct);
                 await Response.Body.FlushAsync(ct);
-            }, model, ct);
+            }, model, null, ct);
         }
         catch (Exception ex)
         {
@@ -193,6 +193,107 @@ public class RunController(
         var doneJson = JsonSerializer.Serialize(new { done = true, output = restored, warning, tokens });
         await Response.WriteAsync($"data: {doneJson}\n\n", ct);
         await Response.Body.FlushAsync(ct);
+    }
+
+    // POST /api/run/stream-files/{profile} — SSE 스트리밍 (이미지/파일 첨부 지원)
+    [HttpPost("stream-files/{profile}")]
+    [RequestSizeLimit(50_000_000)]
+    public async Task StreamRunWithFiles(string profile, [FromForm] string inputText, [FromForm] string? allOutputsJson, CancellationToken ct)
+    {
+        if (!ValidProfiles.Contains(profile))
+        {
+            Response.StatusCode = 400;
+            return;
+        }
+
+        Response.Headers.Append("Content-Type", "text/event-stream");
+        Response.Headers.Append("Cache-Control", "no-cache");
+        Response.Headers.Append("X-Accel-Buffering", "no");
+
+        var (tokenizedInput, piiMap) = piiTokenizer.Tokenize(inputText);
+        var prompt = await promptBuilder.BuildAsync(profile, tokenizedInput);
+
+        var workspacePath = workspaceManager.Create($"s-{Guid.NewGuid().ToString("N")[..6]}");
+        var layout = new WorkspaceLayout(workspacePath);
+        await System.IO.File.WriteAllTextAsync(layout.InputFile, inputText, ct);
+        await System.IO.File.WriteAllTextAsync(layout.PromptFile, prompt, ct);
+
+        if (!string.IsNullOrEmpty(allOutputsJson))
+        {
+            var allOutputs = JsonSerializer.Deserialize<Dictionary<string, string>>(allOutputsJson);
+            if (allOutputs is not null)
+            {
+                foreach (var (stage, content) in allOutputs)
+                {
+                    if (OutputFiles.TryGetValue(stage, out var outFileName) && !string.IsNullOrEmpty(content))
+                        await System.IO.File.WriteAllTextAsync(layout.OutputFile(outFileName), content, ct);
+                }
+            }
+        }
+
+        // 업로드된 이미지 파일을 임시 폴더에 저장
+        var tempDir    = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")[..8]);
+        var imagePaths = new List<string>();
+        Directory.CreateDirectory(tempDir);
+        try
+        {
+            foreach (var file in Request.Form.Files)
+            {
+                var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+                if (ext is ".png" or ".jpg" or ".jpeg" or ".webp" or ".gif")
+                {
+                    var dest = Path.Combine(tempDir, Path.GetFileName(file.FileName));
+                    await using var fs = System.IO.File.Create(dest);
+                    await file.CopyToAsync(fs, ct);
+                    imagePaths.Add(dest);
+                }
+            }
+
+            var model      = cliRunner is ClaudeVertexRunner ? null : settingsService.GetModelForStage(profile);
+            var fullOutput = new StringBuilder();
+            TokenUsage? usage;
+            try
+            {
+                usage = await cliRunner.StreamAsync(prompt, workspacePath, async chunk =>
+                {
+                    fullOutput.Append(chunk);
+                    var json = JsonSerializer.Serialize(new { chunk });
+                    await Response.WriteAsync($"data: {json}\n\n", ct);
+                    await Response.Body.FlushAsync(ct);
+                }, model, imagePaths.Count > 0 ? imagePaths : null, ct);
+            }
+            catch (Exception ex)
+            {
+                var errJson = JsonSerializer.Serialize(new { error = ex.Message });
+                await Response.WriteAsync($"data: {errJson}\n\n", ct);
+                await Response.Body.FlushAsync(ct);
+                return;
+            }
+
+            var restored = piiTokenizer.Detokenize(fullOutput.ToString().TrimEnd(), piiMap);
+            if (profile is "jira" or "design" or "patch")
+                restored = StripCodeFence(restored);
+
+            var stylePath = promptBuilder.GetStyleInjectPath(profile);
+            if (!string.IsNullOrEmpty(stylePath) && restored.Contains("<!--STYLE-->", StringComparison.Ordinal))
+            {
+                var css = await System.IO.File.ReadAllTextAsync(stylePath, ct);
+                restored = restored.Replace("<!--STYLE-->", $"<style>\n{css}\n</style>", StringComparison.Ordinal);
+            }
+
+            var outFile = OutputFiles.GetValueOrDefault(profile, $"{profile}.md");
+            await System.IO.File.WriteAllTextAsync(layout.OutputFile(outFile), restored, ct);
+
+            var warning  = await RunVerifyScriptAsync(profile, restored);
+            object? tokens = usage is null ? null : new { inputTokens = usage.InputTokens, outputTokens = usage.OutputTokens };
+            var doneJson = JsonSerializer.Serialize(new { done = true, output = restored, warning, tokens });
+            await Response.WriteAsync($"data: {doneJson}\n\n", ct);
+            await Response.Body.FlushAsync(ct);
+        }
+        finally
+        {
+            try { Directory.Delete(tempDir, recursive: true); } catch { /* ignore */ }
+        }
     }
 
     // GET /api/policy
