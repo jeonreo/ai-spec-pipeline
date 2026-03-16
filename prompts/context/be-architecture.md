@@ -30,6 +30,30 @@ Path: `api/clo3d-admin/clo3d-admin-api/Controllers/{Domain}Controller.cs`
 - 오류 응답: `{ "code": "ERROR_CODE", "message": "설명" }`
 - 페이징: offset/limit 방식, API 버전: v1 경로 포함
 
+## CQRS 데이터 접근 규칙
+- **Query Handler**: `DbContext` 직접 주입 후 LINQ로 조회 — Repository 거치지 않음
+- **Command Handler**: `I{Entity}Repository` + `{Entity}Specification` 사용 — 도메인 규칙은 Specification에 캡슐화
+
+```csharp
+// Query — DbContext 직접 LINQ
+internal class GetUserQueryHandler(CLO3DContext db) : IRequestHandler<...>
+{
+    public async Task<...> Handle(...) =>
+        await db.TblUsers.Where(u => u.IsActive == true).ToListAsync(ct);
+}
+
+// Command — Repository + Specification
+internal class CreateUserCommandHandler(IUserRepository repo) : IRequestHandler<...>
+{
+    public async Task<...> Handle(...)
+    {
+        var spec = new UserSpecification(request.Email);
+        var exists = await repo.AnyAsync(spec, ct);
+        ...
+    }
+}
+```
+
 ## Coding Rules
 - DB 엔티티 prefix: `Tbl{Entity}` 유지
 - using 정리: 불필요한 using 제거
