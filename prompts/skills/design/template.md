@@ -130,13 +130,17 @@
       ],
       "toolbar": {
         "primarySearchPlaceholder": "[search placeholder 1]",
-        "secondarySearchPlaceholder": "[search placeholder 2]",
+        "secondarySearchPlaceholder": "[search placeholder 2 — optional, omit if single search]",
         "filterChips": [
-          "[filter 1]",
-          "[filter 2]"
+          { "label": "[filter label]", "icon": "[optional icon char]", "active": false }
         ],
-        "resultLabel": "[result label]"
+        "filterResetLabel": "RESET",
+        "resultLabel": "[e.g. Results 5]",
+        "rowsPerPage": 20
       },
+      "extInfo": [
+        { "label": "[meta label]", "value": "[meta value]", "badge": "[optional badge style]" }
+      ],
       "leftPanel": {
         "title": "[left panel title]",
         "subtitle": "[left panel subtitle]",
@@ -178,19 +182,25 @@
           ],
           "actions": [
             "[card action 1]"
+          ],
+          "options": [
+            { "label": "[action label]", "variant": "default" },
+            { "label": "[danger action]", "variant": "danger" }
           ]
         }
       ],
       "table": {
         "columns": [
-          "[column 1]",
-          "[column 2]"
+          { "key": "[col-key]", "label": "[Column Label]", "sortable": true, "infoTooltip": "[optional tooltip text]" }
         ],
         "rows": [
-          [
-            "[row 1 col 1]",
-            "[row 1 col 2]"
-          ]
+          {
+            "[col-key]": "[plain string value]",
+            "[badge-col-key]": { "type": "badge-stack", "items": [{ "label": "[badge label]", "style": "badge-green" }] }
+          }
+        ],
+        "extInfo": [
+          { "label": "[meta label]", "value": "[meta value]", "badge": "[optional badge style]" }
         ]
       },
       "badgeMapping": {

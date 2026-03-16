@@ -142,9 +142,11 @@ Prefer including:
 #### adapterHints.clover.toolbar
 
 - `primarySearchPlaceholder`
-- `secondarySearchPlaceholder`
-- `filterChips`
-- `resultLabel`
+- `secondarySearchPlaceholder` *(optional)* — 두 번째 검색 입력이 있을 때만 추가 (e.g. Email Address)
+- `filterChips` *(optional)* — 탭형 필터 버튼 목록. 각 항목은 `{ label, icon?, active? }` 형태
+- `filterResetLabel` *(optional)* — RESET 버튼 텍스트. 필터 리셋 기능이 있을 때만 포함
+- `resultLabel` *(optional)* — 검색 결과 수 표시 레이블 (e.g. `"Results 5"`)
+- `rowsPerPage` *(optional)* — 페이지당 행 수 컨트롤이 있으면 기본값 포함 (e.g. `20`)
 
 #### adapterHints.clover.leftPanel
 
@@ -172,11 +174,13 @@ Each card may include:
 - `meta`
 - `bullets`
 - `actions`
+- `options` *(optional)* — 카드/행에 contextual action 드롭다운이 있을 때. `[{ label, variant? }]` 형태. `variant: "danger"`이면 빨간색으로 렌더링
 
 #### adapterHints.clover.table
 
-- `columns`
-- `rows`
+- `columns` — 각 컬럼은 `{ key, label, sortable?, infoTooltip? }` 형태. `sortable: true`이면 헤더에 정렬 아이콘 렌더링. `infoTooltip`이 있으면 `?` 아이콘 표시
+- `rows` — 셀 값이 단일 문자열이면 그대로, 복수 뱃지가 필요하면 `{ type: "badge-stack", items: [...] }` 형태로 표현
+- `extInfo` *(optional)* — 툴바와 테이블 사이에 표시할 추가 메타 정보 바. 페이지마다 다를 수 있음. `[{ label, value, badge? }]` 배열
 
 ## Additional Guidance
 

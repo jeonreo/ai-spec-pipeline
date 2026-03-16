@@ -34,3 +34,5 @@ Path: `api/clo3d-admin/clo3d-admin-api/Controllers/{Domain}Controller.cs`
 - DB 엔티티 prefix: `Tbl{Entity}` 유지
 - using 정리: 불필요한 using 제거
 - 외부 연동: AWS S3, CloudFront, Google BigQuery, CloSet, CloVise
+- 페이징: 목록 조회 시 `IPageable` 인터페이스 사용 — 기존 코드베이스와 일관성 유지
+- 부정 연산자 `!` 사용 금지 — 반드시 `== false` 또는 `!= true` 로 표현

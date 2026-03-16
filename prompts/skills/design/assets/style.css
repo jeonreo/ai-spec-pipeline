@@ -180,3 +180,61 @@ tr:hover td { background: #fafbfe; }
 .stat-label { font-size: 11px; font-weight: 500; color: #9ba3c0; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
 .stat-value { font-size: 24px; font-weight: 700; color: #1e2235; }
 .stat-sub { font-size: 12px; color: #9ba3c0; margin-top: 4px; }
+
+/* ─── Filter chip bar (tab-style filters above table) ─── */
+.filter-chip-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.filter-chip { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border: 1px solid #d9dde8; border-radius: 5px; background: #fff; font-size: 12px; font-weight: 500; color: #4a5168; cursor: pointer; white-space: nowrap; }
+.filter-chip:hover { border-color: #3d5af1; color: #3d5af1; }
+.filter-chip.active { background: #eef1fe; border-color: #3d5af1; color: #3d5af1; }
+.filter-chip-icon { font-size: 11px; }
+.filter-chip-reset { background: none; border: none; color: #9ba3c0; font-size: 12px; font-weight: 500; cursor: pointer; padding: 5px 8px; text-decoration: underline; }
+.filter-chip-reset:hover { color: #e53e3e; }
+
+/* ─── Dual search row ─── */
+.search-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.search-row .search-input { width: 220px; }
+.search-row-label { font-size: 12px; color: #9ba3c0; white-space: nowrap; }
+
+/* ─── Table header extras (sort / tooltip icons) ─── */
+.th-inner { display: inline-flex; align-items: center; gap: 4px; }
+.th-sort { display: inline-flex; flex-direction: column; gap: 1px; cursor: pointer; color: #c5cae3; font-size: 9px; line-height: 1; }
+.th-sort:hover { color: #3d5af1; }
+.th-sort.asc::after { content: '▲'; color: #3d5af1; }
+.th-sort.desc::after { content: '▼'; color: #3d5af1; }
+.th-info { display: inline-flex; align-items: center; justify-content: center; width: 13px; height: 13px; border-radius: 50%; background: #d9dde8; color: #6b7280; font-size: 9px; font-weight: 700; cursor: default; }
+.th-info:hover { background: #3d5af1; color: #fff; }
+
+/* ─── Badge stack (multiple badges in one cell) ─── */
+.badge-stack { display: flex; flex-direction: column; gap: 3px; }
+.badge-stack-row { display: flex; align-items: center; gap: 4px; }
+.badge-cnt { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: #6b7280; }
+.badge-cnt-icon { font-size: 10px; color: #9ba3c0; }
+.badge-cnt-val { font-weight: 600; color: #1e2235; }
+
+/* ─── Rows-per-page control ─── */
+.rows-per-page { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #6b7280; }
+.rows-per-page select { border: 1px solid #d9dde8; border-radius: 4px; padding: 3px 6px; font-size: 12px; background: #fff; color: #1e2235; outline: none; cursor: pointer; }
+.rows-per-page select:focus { border-color: #3d5af1; }
+.list-toolbar-right { display: flex; align-items: center; gap: 12px; }
+
+/* ─── Collapsible SNB group ─── */
+.snb-group-label .snb-chevron { font-size: 10px; color: #6b7280; transition: transform .2s; }
+.snb-group.collapsed .snb-chevron { transform: rotate(-90deg); }
+.snb-group.collapsed .snb-item { display: none; }
+
+/* ─── extInfo block (optional per-page extra metadata row) ─── */
+.ext-info-bar { display: flex; align-items: center; gap: 16px; padding: 8px 0 4px; flex-wrap: wrap; }
+.ext-info-item { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #6b7280; }
+.ext-info-label { font-weight: 500; color: #9ba3c0; }
+.ext-info-value { color: #1e2235; }
+.ext-info-badge { }
+
+/* ─── Option dropdown (contextual action menu on rows) ─── */
+.option-menu-wrap { position: relative; display: inline-block; }
+.option-menu-btn { background: none; border: 1px solid #d9dde8; border-radius: 4px; padding: 3px 8px; font-size: 12px; color: #6b7280; cursor: pointer; }
+.option-menu-btn:hover { border-color: #3d5af1; color: #3d5af1; }
+.option-menu { position: absolute; right: 0; top: calc(100% + 4px); min-width: 140px; background: #fff; border: 1px solid #e5e9f2; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,.1); z-index: 100; }
+.option-menu-item { padding: 8px 14px; font-size: 13px; color: #1e2235; cursor: pointer; }
+.option-menu-item:hover { background: #f8f9fd; color: #3d5af1; }
+.option-menu-item.danger { color: #b91c1c; }
+.option-menu-item.danger:hover { background: #fee2e2; }
