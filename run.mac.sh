@@ -119,6 +119,32 @@ else
   masked="${JIRA_TOKEN:0:8}****"
   printf "${GREEN}[ OK ]${NC} %-8s Token OK (%s)\n" "Jira" "$masked"
 fi
+
+# ─── Slack Bot Token 체크 (.env → 환경변수 순) ───────────────────────
+SLACK_TOKEN=$(get_env_value "Slack__BotToken")
+[ -z "$SLACK_TOKEN" ] && SLACK_TOKEN="${Slack__BotToken:-}"
+
+if [ -z "$SLACK_TOKEN" ]; then
+  echo -e "${YELLOW}[WARN] Slack Bot Token is not configured.${NC}"
+  echo "       Slack 스레드 읽기 기능이 비활성화됩니다."
+  echo ""
+  echo -e "${CYAN}  Generate token: https://api.slack.com/apps  (channels:history 스코프 필요)${NC}"
+  echo ""
+  read -rp "  Enter Slack Bot Token (press Enter to skip): " inputSlackToken
+
+  if [ -n "$inputSlackToken" ]; then
+    inputSlackToken=$(echo "$inputSlackToken" | tr -d '[:space:]')
+    set_env_value "Slack__BotToken" "$inputSlackToken"
+    export Slack__BotToken="$inputSlackToken"
+    echo -e "${GREEN}[ OK ] Slack Bot Token saved to .env${NC}"
+  else
+    echo -e "${YELLOW}[ -- ] Slack Token skipped (Slack 스레드 읽기 비활성)${NC}"
+  fi
+else
+  export Slack__BotToken="$SLACK_TOKEN"
+  masked="${SLACK_TOKEN:0:8}****"
+  printf "${GREEN}[ OK ]${NC} %-8s Token OK (%s)\n" "Slack" "$masked"
+fi
 echo ""
 
 # ─── npm install ──────────────────────────────────────────────────────
@@ -149,7 +175,7 @@ if [[ "$TERM_PROGRAM" == "iTerm.app" ]] || open -Ra "iTerm" 2>/dev/null; then
         set backendTab to (create tab with default profile)
         tell backendTab
           tell current session
-            write text "export Jira__ApiToken='$Jira__ApiToken' && cd '$BACKEND_DIR' && dotnet run"
+            write text "export Jira__ApiToken='$Jira__ApiToken' && export Slack__BotToken='$Slack__BotToken' && cd '$BACKEND_DIR' && dotnet run"
           end tell
         end tell
         set frontendTab to (create tab with default profile)
@@ -165,7 +191,7 @@ else
   # Terminal.app
   osascript <<APPL
     tell application "Terminal"
-      do script "export Jira__ApiToken='$Jira__ApiToken' && cd '$BACKEND_DIR' && dotnet run"
+      do script "export Jira__ApiToken='$Jira__ApiToken' && export Slack__BotToken='$Slack__BotToken' && cd '$BACKEND_DIR' && dotnet run"
       do script "cd '$ROOT' && npm run dev"
       activate
     end tell

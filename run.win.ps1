@@ -188,6 +188,38 @@ if ([string]::IsNullOrWhiteSpace($githubToken)) {
     $maskedGh = $githubToken.Substring(0, [Math]::Min(8, $githubToken.Length)) + "****"
     Write-Host "[ OK ] $("GitHub".PadRight(8)): Token OK ($maskedGh)" -ForegroundColor Green
 }
+
+# --- Slack Bot Token 체크 ---
+$slackToken = Get-EnvValue $envFilePath "Slack__BotToken"
+if ([string]::IsNullOrWhiteSpace($slackToken)) { $slackToken = $env:Slack__BotToken }
+
+if ([string]::IsNullOrWhiteSpace($slackToken)) {
+    Write-Host "[WARN] Slack Bot Token is not configured." -ForegroundColor Yellow
+    Write-Host "       Slack 스레드 읽기 기능이 비활성화됩니다."
+    Write-Host ""
+    Write-Host "  Generate token: https://api.slack.com/apps  (channels:history 스코프 필요)" -ForegroundColor Cyan
+    Write-Host ""
+    $inputSlackToken = Read-Host "  Enter Slack Bot Token (press Enter to skip)"
+
+    if (-not [string]::IsNullOrWhiteSpace($inputSlackToken)) {
+        $inputSlackToken = $inputSlackToken.Trim()
+        $slackLine = "Slack__BotToken=$inputSlackToken"
+        if (Test-Path $envFilePath) {
+            $lines = Get-Content $envFilePath | Where-Object { $_ -notmatch "^\s*Slack__BotToken\s*=" }
+            ($lines + $slackLine) | Set-Content $envFilePath -Encoding UTF8
+        } else {
+            $slackLine | Set-Content $envFilePath -Encoding UTF8
+        }
+        $env:Slack__BotToken = $inputSlackToken
+        Write-Host "[ OK ] Slack Bot Token saved to .env" -ForegroundColor Green
+    } else {
+        Write-Host "[ -- ] Slack Token skipped (Slack 스레드 읽기 비활성)" -ForegroundColor DarkYellow
+    }
+} else {
+    $env:Slack__BotToken = $slackToken
+    $maskedSlack = $slackToken.Substring(0, [Math]::Min(8, $slackToken.Length)) + "****"
+    Write-Host "[ OK ] $("Slack".PadRight(8)): Token OK ($maskedSlack)" -ForegroundColor Green
+}
 Write-Host ""
 
 # npm install
