@@ -32,7 +32,7 @@ Write-Host "  AI Spec Pipeline - Startup Check" -ForegroundColor Cyan
 Write-Host "====================================" -ForegroundColor Cyan
 Write-Host ""
 
-# --- appsettings.json 읽어서 runner 결정 ---
+# --- Read appsettings.json and determine runner ---
 $appSettingsPath = "$root\backend\LocalCliRunner.Api\appsettings.json"
 $vertexProjectId = $null
 $vertexProvider  = "claude"
@@ -50,17 +50,17 @@ if (Test-Path $appSettingsPath) {
 
 $useVertex = -not [string]::IsNullOrWhiteSpace($vertexProjectId)
 
-# --- 공통 도구 체크 ---
+# --- Common tool checks ---
 Check-Tool "dotnet" "https://dot.net (.NET 10 SDK)"
 Check-Tool "node"   "https://nodejs.org (LTS)"
 
-# --- Runner별 체크 ---
+# --- Runner-specific checks ---
 Write-Host ""
 if ($useVertex) {
     $runnerLabel = if ($vertexProvider -eq "gemini") { "Vertex AI (Gemini)" } else { "Vertex AI (Claude)" }
     Write-Host "[ .. ] Runner: $runnerLabel (ProjectId: $vertexProjectId)" -ForegroundColor Cyan
 
-    # gcloud CLI 설치 확인
+    # Check gcloud CLI installation
     if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) {
         Write-Host "[FAIL] gcloud CLI not found" -ForegroundColor Red
         Write-Host "       Install: https://cloud.google.com/sdk/docs/install"
@@ -69,7 +69,7 @@ if ($useVertex) {
     try { $gver = & gcloud --version 2>$null | Select-Object -First 1 } catch { $gver = "?" }
     Write-Host "[ OK ] $("gcloud".PadRight(8)): $gver" -ForegroundColor Green
 
-    # ADC(Application Default Credentials) 확인
+    # Check ADC (Application Default Credentials)
     Write-Host "[ .. ] Checking gcloud ADC auth..."
     $token = & gcloud auth application-default print-access-token 2>$null
     if (-not $token) {
@@ -84,7 +84,7 @@ if ($useVertex) {
     Write-Host "[ .. ] Runner: Claude CLI (local)" -ForegroundColor Cyan
     Check-Tool "claude" "https://docs.anthropic.com/en/docs/claude-code"
 
-    # Claude 로그인 상태 확인
+    # Check Claude login status
     Write-Host "[ .. ] Checking claude auth..."
     try {
         $claudeStatus = & claude --print "ping" 2>$null
@@ -100,10 +100,10 @@ if ($useVertex) {
 }
 Write-Host ""
 
-# --- Jira API Token 체크 (.env 파일 → 환경변수 순으로 확인) ---
+# --- Jira API Token check (.env file -> env var) ---
 $envFilePath = "$root\.env"
 
-# .env 파일 파싱 함수
+# .env file parser function
 function Get-EnvValue($path, $key) {
     if (-not (Test-Path $path)) { return $null }
     foreach ($line in Get-Content $path) {
@@ -112,11 +112,11 @@ function Get-EnvValue($path, $key) {
     return $null
 }
 
-# .env → 세션 env var → appsettings 순서로 토큰 확인
+# Lookup order: .env -> session env var -> appsettings
 $jiraToken = Get-EnvValue $envFilePath "Jira__ApiToken"
 if ([string]::IsNullOrWhiteSpace($jiraToken)) { $jiraToken = $env:Jira__ApiToken }
 
-# appsettings에서 BaseUrl/Email 읽기 (표시용)
+# Read BaseUrl/Email from appsettings (for display)
 $jiraBaseUrl = $null; $jiraEmail = $null
 if (Test-Path $appSettingsPath) {
     try {
@@ -151,21 +151,21 @@ if ([string]::IsNullOrWhiteSpace($jiraToken)) {
         Write-Host "[ -- ] Jira Token skipped (Jira integration will not work)" -ForegroundColor DarkYellow
     }
 } else {
-    # .env에서 읽은 토큰을 현재 세션 env var로 주입 (백엔드 프로세스가 상속)
+    # Inject token from .env into current session env var (inherited by backend process)
     $env:Jira__ApiToken = $jiraToken
     $maskedToken = $jiraToken.Substring(0, [Math]::Min(8, $jiraToken.Length)) + "****"
     Write-Host "[ OK ] $("Jira".PadRight(8)): Token OK ($maskedToken)" -ForegroundColor Green
 }
 
-# --- GitHub Token 체크 (Jira 토큰 여부와 무관하게 항상 실행) ---
+# --- GitHub Token check (always runs regardless of Jira token) ---
 $githubToken = Get-EnvValue $envFilePath "GitHub__Token"
 if ([string]::IsNullOrWhiteSpace($githubToken)) { $githubToken = $env:GitHub__Token }
 
 if ([string]::IsNullOrWhiteSpace($githubToken)) {
     Write-Host "[WARN] GitHub Token is not configured." -ForegroundColor Yellow
-    Write-Host "       Code Agent / PR Draft 기능이 비활성화됩니다."
+    Write-Host "       Code Agent / PR Draft features will be disabled."
     Write-Host ""
-    Write-Host "  Generate token: https://github.com/settings/tokens  (repo 스코프 필요)" -ForegroundColor Cyan
+    Write-Host "  Generate token: https://github.com/settings/tokens  (repo scope required)" -ForegroundColor Cyan
     Write-Host ""
     $inputGhToken = Read-Host "  Enter GitHub Token (press Enter to skip)"
 
@@ -181,7 +181,7 @@ if ([string]::IsNullOrWhiteSpace($githubToken)) {
         $env:GitHub__Token = $inputGhToken
         Write-Host "[ OK ] GitHub Token saved to .env" -ForegroundColor Green
     } else {
-        Write-Host "[ -- ] GitHub Token skipped (Code Agent / PR Draft 비활성)" -ForegroundColor DarkYellow
+        Write-Host "[ -- ] GitHub Token skipped (Code Agent / PR Draft disabled)" -ForegroundColor DarkYellow
     }
 } else {
     $env:GitHub__Token = $githubToken
@@ -189,15 +189,15 @@ if ([string]::IsNullOrWhiteSpace($githubToken)) {
     Write-Host "[ OK ] $("GitHub".PadRight(8)): Token OK ($maskedGh)" -ForegroundColor Green
 }
 
-# --- Slack Bot Token 체크 ---
+# --- Slack Bot Token check ---
 $slackToken = Get-EnvValue $envFilePath "Slack__BotToken"
 if ([string]::IsNullOrWhiteSpace($slackToken)) { $slackToken = $env:Slack__BotToken }
 
 if ([string]::IsNullOrWhiteSpace($slackToken)) {
     Write-Host "[WARN] Slack Bot Token is not configured." -ForegroundColor Yellow
-    Write-Host "       Slack 스레드 읽기 기능이 비활성화됩니다."
+    Write-Host "       Slack thread reading feature will be disabled."
     Write-Host ""
-    Write-Host "  Generate token: https://api.slack.com/apps  (channels:history 스코프 필요)" -ForegroundColor Cyan
+    Write-Host "  Generate token: https://api.slack.com/apps  (channels:history scope required)" -ForegroundColor Cyan
     Write-Host ""
     $inputSlackToken = Read-Host "  Enter Slack Bot Token (press Enter to skip)"
 
@@ -213,7 +213,7 @@ if ([string]::IsNullOrWhiteSpace($slackToken)) {
         $env:Slack__BotToken = $inputSlackToken
         Write-Host "[ OK ] Slack Bot Token saved to .env" -ForegroundColor Green
     } else {
-        Write-Host "[ -- ] Slack Token skipped (Slack 스레드 읽기 비활성)" -ForegroundColor DarkYellow
+        Write-Host "[ -- ] Slack Token skipped (Slack thread reading disabled)" -ForegroundColor DarkYellow
     }
 } else {
     $env:Slack__BotToken = $slackToken
