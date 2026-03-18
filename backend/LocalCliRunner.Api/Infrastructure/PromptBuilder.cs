@@ -12,6 +12,7 @@ public class PromptBuilder(IConfiguration config)
         ["jira"] = "Output only valid JSON without markdown fences or commentary.",
         ["qa"] = "Output only the QA document.",
         ["design"] = "Output only a valid Design Package v1 JSON object without markdown fences, HTML, or commentary.",
+        ["learn"] = "Output only valid JSON without markdown fences or commentary.",
     };
 
     private static readonly HashSet<string> PolicyProfiles = ["spec", "jira"];
@@ -58,6 +59,9 @@ public class PromptBuilder(IConfiguration config)
     public Task<string> ReadPolicyAsync() => ReadPromptAsync("policy.md");
 
     public string GetPolicyPath() => Path.Combine(_promptsDir, "policy.md");
+
+    public string GetSkillPath(string profile) =>
+        Path.Combine(_promptsDir, "skills", profile, "SKILL.md");
 
     public string GetVerifyScriptPath(string profile)
     {

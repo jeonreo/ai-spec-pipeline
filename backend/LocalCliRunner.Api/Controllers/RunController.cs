@@ -22,7 +22,7 @@ public class RunController(
     RepoSearchService repoSearch) : ControllerBase
 {
     private static readonly HashSet<string> ValidProfiles =
-        ["intake", "spec", "jira", "qa", "design", "code-analysis", "patch"];
+        ["intake", "spec", "jira", "qa", "design", "code-analysis", "patch", "learn"];
 
     private static readonly Dictionary<string, string> OutputFiles = new()
     {
@@ -33,6 +33,7 @@ public class RunController(
         ["design"]        = "design.json",
         ["code-analysis"] = "code-analysis.md",
         ["patch"]         = "patch.json",
+        ["learn"]         = "learn.json",
     };
 
     // POST /api/run/{profile}
@@ -173,7 +174,7 @@ public class RunController(
         var restored = piiTokenizer.Detokenize(fullOutput.ToString().TrimEnd(), piiMap);
 
         // JSON 출력 스테이지: 마크다운 코드블록 마커 제거
-        if (profile is "jira" or "design" or "patch")
+        if (profile is "jira" or "design" or "patch" or "learn")
             restored = StripCodeFence(restored);
 
         // <!--STYLE--> 마커를 실제 CSS로 교체 (design 전용)
@@ -271,7 +272,7 @@ public class RunController(
             }
 
             var restored = piiTokenizer.Detokenize(fullOutput.ToString().TrimEnd(), piiMap);
-            if (profile is "jira" or "design" or "patch")
+            if (profile is "jira" or "design" or "patch" or "learn")
                 restored = StripCodeFence(restored);
 
             var stylePath = promptBuilder.GetStyleInjectPath(profile);
@@ -527,3 +528,42 @@ public record RunRequest(
     string InputText,
     Dictionary<string, string>? AllOutputs = null
 );
+
+[ApiController]
+[Route("api/learn")]
+public class LearnController(PromptBuilder promptBuilder) : ControllerBase
+{
+    // POST /api/learn/apply
+    [HttpPost("apply")]
+    public async Task<IActionResult> Apply([FromBody] LearnApplyRequest request)
+    {
+        var applied = new List<string>();
+        var errors  = new List<string>();
+
+        foreach (var patch in request.Patches)
+        {
+            try
+            {
+                var skillPath = promptBuilder.GetSkillPath(patch.Stage);
+                if (!System.IO.File.Exists(skillPath))
+                {
+                    errors.Add($"{patch.Stage}: SKILL.md를 찾을 수 없음");
+                    continue;
+                }
+                var existing = await System.IO.File.ReadAllTextAsync(skillPath);
+                var updated  = existing.TrimEnd() + "\n\n---\n\n## Learn Agent 추가 지침\n\n" + patch.SkillPatch.Trim();
+                await System.IO.File.WriteAllTextAsync(skillPath, updated);
+                applied.Add(patch.Stage);
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"{patch.Stage}: {ex.Message}");
+            }
+        }
+
+        return Ok(new { applied, errors });
+    }
+}
+
+public record LearnPatch(string Stage, string SkillPatch);
+public record LearnApplyRequest(List<LearnPatch> Patches);

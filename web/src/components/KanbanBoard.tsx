@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Tab, RunState } from '../App'
-import { TokenUsage, PushBranchResult, PrResult } from '../api'
+import { TokenUsage, PushBranchResult, PrResult, LearnPatch } from '../api'
 import CardDetailDrawer from './CardDetailDrawer'
 
 // ── Types ───────────────────────────────────────────────────────
@@ -22,6 +22,7 @@ const STAGE_META: Record<Tab, StageMeta> = {
   design:          { label: 'Design Agent',  icon: '🎨', tags: ['design', 'handoff'],          priority: 'High',     agent: 'design-agent'  },
   'code-analysis': { label: 'Code Agent',    icon: '🔍', tags: ['code', 'analysis'],           priority: 'High',     agent: 'code-agent'    },
   patch:           { label: 'Patch Agent',   icon: '🩹', tags: ['patch', 'code-change'],       priority: 'High',     agent: 'patch-agent'   },
+  learn:           { label: 'Learn Agent',   icon: '🧠', tags: ['prompt-learning', 'SKILL.md'], priority: 'Normal',   agent: 'learn-agent'   },
 }
 
 const COLUMNS: { id: BoardCol; label: string }[] = [
@@ -158,9 +159,17 @@ interface BoardProps {
   onPushBranch: () => void
   onCreatePr: () => void
   onJiraCreated?: (key: string) => void
+  onLearnApply: (patches: LearnPatch[]) => void
 }
 
 const ALL_STAGES: Tab[] = ['intake', 'spec', 'jira', 'qa', 'design', 'code-analysis', 'patch']
+
+interface LearnSuggestion {
+  stage: string
+  issue: string
+  suggestion: string
+  skill_patch: string
+}
 
 export default function KanbanBoard({
   outputs, runStates, stale, elapsed, tokens, warnings,
@@ -168,12 +177,29 @@ export default function KanbanBoard({
   jiraIssueKey, jiraLinkError,
   pushResults, pushCreating, prResults, prCreating,
   onRun, onRunParallel, onOutputChange, onDecisionsChange, onConfirmAndRun, onSkipAndRun,
-  onPushBranch, onCreatePr, onJiraCreated,
+  onPushBranch, onCreatePr, onJiraCreated, onLearnApply,
 }: BoardProps) {
   const [drawerTab, setDrawerTab] = useState<Tab | null>(null)
+  const [learnChecked, setLearnChecked] = useState<Record<number, boolean>>({})
 
   const doneCount    = ALL_STAGES.filter(t => runStates[t] === 'done').length
   const runningCount = ALL_STAGES.filter(t => runStates[t] === 'running').length
+
+  const learnSuggestions: LearnSuggestion[] = (() => {
+    if (!outputs.learn) return []
+    try { return JSON.parse(outputs.learn)?.suggestions ?? [] }
+    catch { return [] }
+  })()
+
+  const hasAnyOutput = ALL_STAGES.some(t => outputs[t]?.trim())
+
+  function handleLearnApplySelected() {
+    const patches: LearnPatch[] = learnSuggestions
+      .filter((_, i) => learnChecked[i] !== false)
+      .map(s => ({ stage: s.stage, skillPatch: s.skill_patch }))
+    if (patches.length === 0) return
+    onLearnApply(patches)
+  }
   const colStages    = (col: BoardCol) =>
     ALL_STAGES.filter(t => getBoardCol(t, runStates[t], decisionsConfirmed, specDone) === col)
   const patchDone    = runStates.patch === 'done'
@@ -304,6 +330,76 @@ export default function KanbanBoard({
           </div>
         </div>
       )}
+
+      {/* Learn Agent bar */}
+      <div className="pr-agent-bar" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div className="pr-agent-bar-left">
+            <span className="pr-agent-icon">🧠</span>
+            <span className="pr-agent-label">Learn Agent</span>
+            <span className="task-tag">prompt-learning</span>
+            <span className="task-tag">SKILL.md</span>
+            {runStates.learn === 'done' && elapsed.learn !== null && (
+              <span className="agent-elapsed">{elapsed.learn.toFixed(1)}s</span>
+            )}
+            {tokens.learn !== null && (
+              <span className="agent-tokens" title={`input: ${tokens.learn.inputTokens.toLocaleString()} / output: ${tokens.learn.outputTokens.toLocaleString()}`}>
+                {tokens.learn.inputTokens.toLocaleString()}/{tokens.learn.outputTokens.toLocaleString()}
+              </span>
+            )}
+            {stale.learn && runStates.learn === 'done' && (
+              <span className="task-tag task-tag--stale">stale</span>
+            )}
+          </div>
+          <div className="pr-agent-bar-right">
+            <button
+              className={`btn-create-pr${runStates.learn === 'running' ? ' btn-create-pr--loading' : ''}`}
+              onClick={() => onRun('learn')}
+              disabled={runStates.learn === 'running' || !hasAnyOutput}
+              title={!hasAnyOutput ? '분석할 스테이지 출력이 없습니다' : '파이프라인 출력 분석 후 SKILL.md 개선 제안 생성'}
+            >
+              {runStates.learn === 'running' ? '분석 중...' : runStates.learn === 'done' ? '↺ 재분석' : '분석 시작'}
+            </button>
+          </div>
+        </div>
+
+        {runStates.learn === 'done' && learnSuggestions.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {learnSuggestions.map((s, i) => (
+              <label key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', padding: '6px 8px', background: 'var(--surface-2)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+                <input
+                  type="checkbox"
+                  checked={learnChecked[i] !== false}
+                  onChange={e => setLearnChecked(prev => ({ ...prev, [i]: e.target.checked }))}
+                  style={{ marginTop: 2, flexShrink: 0 }}
+                />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span className="task-tag" style={{ background: 'var(--accent-dim)', color: 'var(--accent)' }}>{s.stage}</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{s.issue}</span>
+                  </div>
+                  <span style={{ fontSize: 12, color: 'var(--text-2)' }}>{s.suggestion}</span>
+                </div>
+              </label>
+            ))}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
+              <button
+                className="btn-create-pr"
+                onClick={handleLearnApplySelected}
+                disabled={learnSuggestions.every((_, i) => learnChecked[i] === false)}
+              >
+                선택 항목 SKILL.md에 적용
+              </button>
+            </div>
+          </div>
+        )}
+
+        {runStates.learn === 'done' && learnSuggestions.length === 0 && outputs.learn && (
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '4px 8px' }}>
+            개선 제안이 없습니다. (출력이 JSON 형식이 아니거나 제안 없음)
+          </div>
+        )}
+      </div>
 
       {/* Detail drawer */}
       {drawerTab && (

@@ -19,3 +19,6 @@ backend/LocalCliRunner.Api/pipeline-settings.json
 .env
 AI_Spec_Pipeline.pptx
 scripts/gen_ppt.py
+
+# 프롬프트 학습 관찰 기록 (로컬 전용)
+observations/*.md

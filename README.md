@@ -123,7 +123,35 @@ Spec에서 섹션별 테스트 케이스를 생성합니다.
 
 ---
 
-### Step 7 — Draft PR 자동 생성
+### Step 7 — Learn Agent: 프롬프트 자동 학습
+
+파이프라인 실행 결과를 분석하여 각 스테이지의 프롬프트(SKILL.md)를 자동으로 개선합니다.
+
+```
+파이프라인 출력 (intake/spec/jira/qa/design/code-analysis/patch)
+    ↓
+Learn Agent (Sonnet) — 출력 품질 패턴 분석
+    ↓
+개선 제안 JSON (stage, issue, suggestion, skill_patch)
+    ↓
+웹 UI 체크박스 승인 → SKILL.md 패치 적용
+```
+
+**UI 사용 방법:**
+1. 파이프라인 스테이지를 1개 이상 실행한다
+2. 하단 **Learn Agent** 바에서 **분석 시작** 버튼을 클릭한다
+3. 분석 완료 후 스테이지별 개선 제안이 체크박스로 표시된다
+4. 적용할 항목을 선택하고 **선택 항목 SKILL.md에 적용** 클릭 → 즉시 반영
+
+**왜 강력한가:**
+- 사용할수록 파이프라인 품질이 향상됨 — 실제 출력 기반의 피드백 루프
+- 승인 없이 자동 적용하지 않음 — 사람이 최종 결정
+- 스테이지별 세분화된 개선으로 불필요한 지시문 오염 없음
+- 변경 내역이 `observations/` 디렉토리에 자동 기록
+
+---
+
+### Step 8 — Draft PR 자동 생성
 
 Patch 결과를 FE·BE 저장소에 각각 브랜치 커밋 후 Draft PR을 생성합니다.
 

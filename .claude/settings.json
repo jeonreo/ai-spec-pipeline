@@ -1,4 +1,7 @@
 {
+  "env": {
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "50"
+  },
   "permissions": {
     "allow": [
       "Bash(cmd /c run.bat)",
@@ -49,6 +52,26 @@
       "Read(//c/Users/Reo/.npm/**)",
       "Bash(npm install --save-dev puppeteer)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5176)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(~/.ssh/*)",
+      "Read(~/.aws/*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const i=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));const p=i.tool_input&&(i.tool_input.file_path||'');if(p&&p.includes('SKILL.md')){const d=new Date();const dt=d.toISOString().slice(0,10);const t=d.toTimeString().slice(0,8);const f='observations/'+dt+'.md';const line='- ['+t+'] SKILL.md 수정: '+p.replace(/.*prompts\\/skills\\//,'').replace('/SKILL.md','')+'\\n';try{require('fs').mkdirSync('observations',{recursive:true});require('fs').appendFileSync(f,line);}catch(e){}}\" 2>/dev/null || true"
+          }
+        ]
+      }
     ]
   }
 }

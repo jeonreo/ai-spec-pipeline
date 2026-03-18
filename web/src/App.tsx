@@ -1,21 +1,21 @@
 import { useState, useEffect, useRef } from 'react'
-import { streamStage, streamStageWithFiles, fetchPolicy, fetchSettings, TokenUsage, pushBranch, createPullRequest, addJiraRemoteLink, PushBranchResult, PrResult } from './api'
+import { streamStage, streamStageWithFiles, fetchPolicy, fetchSettings, TokenUsage, pushBranch, createPullRequest, addJiraRemoteLink, PushBranchResult, PrResult, applyLearnSuggestions, LearnPatch } from './api'
 import SourcePanel from './components/SourcePanel'
 import KanbanBoard from './components/KanbanBoard'
 import HistoryPanel from './components/HistoryPanel'
 import SettingsModal from './components/SettingsModal'
 
-export type Tab = 'intake' | 'spec' | 'jira' | 'qa' | 'design' | 'code-analysis' | 'patch'
+export type Tab = 'intake' | 'spec' | 'jira' | 'qa' | 'design' | 'code-analysis' | 'patch' | 'learn'
 export type RunState = 'idle' | 'running' | 'done' | 'failed'
 
-const TABS: Tab[] = ['intake', 'spec', 'jira', 'qa', 'design', 'code-analysis', 'patch']
+const TABS: Tab[] = ['intake', 'spec', 'jira', 'qa', 'design', 'code-analysis', 'patch', 'learn']
 
-const EMPTY_OUTPUTS: Record<Tab, string>           = { intake: '', spec: '', jira: '', qa: '', design: '', 'code-analysis': '', patch: '' }
-const EMPTY_STATES:  Record<Tab, RunState>          = { intake: 'idle', spec: 'idle', jira: 'idle', qa: 'idle', design: 'idle', 'code-analysis': 'idle', patch: 'idle' }
-const EMPTY_ELAPSED: Record<Tab, number | null>     = { intake: null, spec: null, jira: null, qa: null, design: null, 'code-analysis': null, patch: null }
-const EMPTY_TOKENS:  Record<Tab, TokenUsage | null> = { intake: null, spec: null, jira: null, qa: null, design: null, 'code-analysis': null, patch: null }
-const EMPTY_WARNINGS: Record<Tab, string>           = { intake: '', spec: '', jira: '', qa: '', design: '', 'code-analysis': '', patch: '' }
-const EMPTY_SIGNATURES: Record<Tab, string>         = { intake: '', spec: '', jira: '', qa: '', design: '', 'code-analysis': '', patch: '' }
+const EMPTY_OUTPUTS: Record<Tab, string>           = { intake: '', spec: '', jira: '', qa: '', design: '', 'code-analysis': '', patch: '', learn: '' }
+const EMPTY_STATES:  Record<Tab, RunState>          = { intake: 'idle', spec: 'idle', jira: 'idle', qa: 'idle', design: 'idle', 'code-analysis': 'idle', patch: 'idle', learn: 'idle' }
+const EMPTY_ELAPSED: Record<Tab, number | null>     = { intake: null, spec: null, jira: null, qa: null, design: null, 'code-analysis': null, patch: null, learn: null }
+const EMPTY_TOKENS:  Record<Tab, TokenUsage | null> = { intake: null, spec: null, jira: null, qa: null, design: null, 'code-analysis': null, patch: null, learn: null }
+const EMPTY_WARNINGS: Record<Tab, string>           = { intake: '', spec: '', jira: '', qa: '', design: '', 'code-analysis': '', patch: '', learn: '' }
+const EMPTY_SIGNATURES: Record<Tab, string>         = { intake: '', spec: '', jira: '', qa: '', design: '', 'code-analysis': '', patch: '', learn: '' }
 
 const SESSION_KEY = 'ai-spec-pipeline-session'
 
@@ -60,6 +60,8 @@ function extractSpecSections(spec: string, headings: string[]): string {
   return result.join('\n')
 }
 
+const PIPELINE_STAGES: Tab[] = ['intake', 'spec', 'jira', 'qa', 'design', 'code-analysis', 'patch']
+
 const STAGE_INPUT: Record<Tab, (ctx: Context) => string> = {
   intake:          (ctx) => ctx.input,
   spec:            (ctx) => {
@@ -72,6 +74,19 @@ const STAGE_INPUT: Record<Tab, (ctx: Context) => string> = {
   design:          (ctx) => extractSpecSections(ctx.outputs.spec, ['## 기능 요약', '## UI 구성']),
   'code-analysis': (ctx) => ctx.outputs.spec,
   patch:           (ctx) => ctx.outputs['code-analysis'],
+  learn:           (ctx) => {
+    const parts: string[] = []
+    for (const stage of PIPELINE_STAGES) {
+      const out = ctx.outputs[stage]
+      if (out?.trim()) {
+        const preview = out.length > 1500 ? out.slice(0, 1500) + '\n...(truncated)' : out
+        parts.push(`## ${stage}\n\n${preview}`)
+      }
+    }
+    return parts.length > 0
+      ? `다음 파이프라인 스테이지 출력을 분석하고 각 SKILL.md 개선 제안을 JSON으로 출력하라.\n\n${parts.join('\n\n---\n\n')}`
+      : ''
+  },
 }
 
 interface Context {
@@ -86,6 +101,7 @@ function buildStageInputSignatures(ctx: Context): Record<Tab, string> {
     intake: sig('intake'), spec: sig('spec'), jira: sig('jira'),
     qa: sig('qa'), design: sig('design'),
     'code-analysis': sig('code-analysis'), patch: sig('patch'),
+    learn: sig('learn'),
   }
 }
 
@@ -103,6 +119,7 @@ function buildStaleFlags(
     intake: stale('intake'), spec: stale('spec'), jira: stale('jira'),
     qa: stale('qa'), design: stale('design'),
     'code-analysis': stale('code-analysis'), patch: stale('patch'),
+    learn: stale('learn'),
   }
 }
 
@@ -346,6 +363,20 @@ export default function App() {
     }
   }
 
+  async function handleLearnApply(patches: LearnPatch[]) {
+    try {
+      const result = await applyLearnSuggestions(patches)
+      const msg: string[] = []
+      if (result.applied.length > 0)
+        msg.push(`✅ ${result.applied.join(', ')} SKILL.md 업데이트 완료`)
+      if (result.errors.length > 0)
+        msg.push(`⚠️ 오류: ${result.errors.join(', ')}`)
+      alert(msg.join('\n'))
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '적용 실패')
+    }
+  }
+
   function handleReset() {
     setInput('')
     setOutputs({ ...EMPTY_OUTPUTS })
@@ -479,6 +510,7 @@ export default function App() {
           onPushBranch={handlePushBranch}
           onCreatePr={handleCreatePr}
           onJiraCreated={handleJiraCreated}
+          onLearnApply={handleLearnApply}
         />
       </main>
     </div>

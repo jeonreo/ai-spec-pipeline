@@ -420,6 +420,29 @@ export async function saveSettings(settings: PipelineSettings): Promise<Pipeline
   return res.json()
 }
 
+// ── Learn Agent ───────────────────────────────────────────────────────────────
+
+export interface LearnPatch {
+  stage: string
+  skillPatch: string
+}
+
+export interface LearnApplyResult {
+  applied: string[]
+  errors: string[]
+}
+
+export async function applyLearnSuggestions(patches: LearnPatch[]): Promise<LearnApplyResult> {
+  const res = await fetch('/api/learn/apply', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ patches }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error ?? `서버 오류: ${res.status}`)
+  return data
+}
+
 export async function updatePolicy(decisions: string): Promise<void> {
   const res = await fetch('/api/policy/update', {
     method: 'POST',
