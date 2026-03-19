@@ -102,38 +102,9 @@ public class RunController(
 
         var (tokenizedInput, piiMap) = piiTokenizer.Tokenize(request.InputText);
 
-        // code-analysis / patch: FE·BE 저장소를 병렬 검색해 컨텍스트로 주입
-        var promptInput = tokenizedInput;
-        if (profile is "code-analysis" or "patch")
-        {
-            var gh       = settingsService.Get().GitHub;
-            var keywords = RepoSearchService.ExtractSearchKeywords(request.InputText);
-
-            // 설정된 저장소를 모두 병렬 검색
-            var searchTasks = new List<Task<(string Label, List<RepoFile> Files)>>();
-            if (!string.IsNullOrWhiteSpace(gh.FrontendRepoUrl))
-                searchTasks.Add(SearchRepoAsync("Frontend", gh.FrontendRepoUrl, keywords, ct));
-            if (!string.IsNullOrWhiteSpace(gh.BackendRepoUrl))
-                searchTasks.Add(SearchRepoAsync("Backend",  gh.BackendRepoUrl,  keywords, ct));
-
-            if (searchTasks.Count > 0)
-            {
-                var results = await Task.WhenAll(searchTasks);
-                var sections = results
-                    .Where(r => r.Files.Count > 0)
-                    .Select(r => $"## {r.Label} 코드 파일\n\n{RepoSearchService.BuildContext(r.Files)}");
-                var combined = string.Join("\n", sections);
-                if (!string.IsNullOrEmpty(combined))
-                    promptInput = $"{tokenizedInput}\n\n{combined}";
-            }
-        }
-
-        var prompt = await promptBuilder.BuildAsync(profile, promptInput);
-
         var workspacePath = workspaceManager.Create($"s-{Guid.NewGuid().ToString("N")[..6]}");
         var layout = new WorkspaceLayout(workspacePath);
         await System.IO.File.WriteAllTextAsync(layout.InputFile, request.InputText, ct);
-        await System.IO.File.WriteAllTextAsync(layout.PromptFile, prompt, ct);
 
         // 현재 세션의 다른 스테이지 출력물도 함께 저장 → 히스토리에서 전체 세션 복원 가능
         if (request.AllOutputs is not null)
@@ -145,12 +116,124 @@ public class RunController(
             }
         }
 
-        var fullOutput = new StringBuilder();
-
         // Vertex AI는 claude-sonnet-4-6 고정 (null → ClaudeVertexRunner.DefaultModel 사용)
         var model = cliRunner is ClaudeVertexRunner
             ? null
             : settingsService.GetModelForStage(profile);
+
+        // patch: FE/BE 둘 다 설정된 경우 각각 별도 LLM 호출 후 JSON 병합 (토큰 절반씩 사용)
+        if (profile == "patch")
+        {
+            var gh       = settingsService.Get().GitHub;
+            var keywords = RepoSearchService.ExtractSearchKeywords(request.InputText);
+
+            var repoTargets = new List<(string Label, string Url)>();
+            if (!string.IsNullOrWhiteSpace(gh.FrontendRepoUrl)) repoTargets.Add(("Frontend", gh.FrontendRepoUrl));
+            if (!string.IsNullOrWhiteSpace(gh.BackendRepoUrl))  repoTargets.Add(("Backend",  gh.BackendRepoUrl));
+
+            if (repoTargets.Count >= 2)
+            {
+                // 저장소 병렬 검색
+                var searchResults = await Task.WhenAll(
+                    repoTargets.Select(r => SearchRepoAsync(r.Label, r.Url, keywords, ct)));
+
+                var allPatches  = new List<JsonElement>();
+                TokenUsage? totalUsage = null;
+
+                foreach (var (label, files) in searchResults)
+                {
+                    if (files.Count == 0) continue;
+
+                    // 진행 표시 (구분 헤더)
+                    var sep = JsonSerializer.Serialize(new { chunk = $"\n\n// ===== {label} 패치 생성 중... =====\n\n" });
+                    await Response.WriteAsync($"data: {sep}\n\n", ct);
+                    await Response.Body.FlushAsync(ct);
+
+                    var repoInput  = $"{tokenizedInput}\n\n## {label} 코드 파일\n\n{RepoSearchService.BuildContext(files)}";
+                    var repoPrompt = await promptBuilder.BuildAsync(profile, repoInput);
+                    await System.IO.File.WriteAllTextAsync(layout.PromptFile, repoPrompt, ct);
+
+                    var repoBuf = new StringBuilder();
+                    TokenUsage? repoUsage;
+                    try
+                    {
+                        repoUsage = await cliRunner.StreamAsync(repoPrompt, workspacePath, async chunk =>
+                        {
+                            repoBuf.Append(chunk);
+                            var j = JsonSerializer.Serialize(new { chunk });
+                            await Response.WriteAsync($"data: {j}\n\n", ct);
+                            await Response.Body.FlushAsync(ct);
+                        }, model, null, ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        var errJson = JsonSerializer.Serialize(new { error = $"{label} 패치 실패: {ex.Message}" });
+                        await Response.WriteAsync($"data: {errJson}\n\n", ct);
+                        await Response.Body.FlushAsync(ct);
+                        return;
+                    }
+
+                    var repoRestored = piiTokenizer.Detokenize(repoBuf.ToString().TrimEnd(), piiMap);
+                    repoRestored = StripCodeFence(repoRestored);
+                    repoRestored = ExtractJsonContent(repoRestored, expectArray: true);
+
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(repoRestored);
+                        if (doc.RootElement.ValueKind == JsonValueKind.Array)
+                            allPatches.AddRange(doc.RootElement.EnumerateArray().Select(e => e.Clone()));
+                    }
+                    catch { /* 파싱 실패 시 해당 저장소 건너뜀 */ }
+
+                    if (repoUsage is not null)
+                        totalUsage = totalUsage is null
+                            ? repoUsage
+                            : new TokenUsage(totalUsage.InputTokens + repoUsage.InputTokens,
+                                             totalUsage.OutputTokens + repoUsage.OutputTokens);
+                }
+
+                var merged  = JsonSerializer.Serialize(allPatches, new JsonSerializerOptions { WriteIndented = true });
+                var outFile2 = OutputFiles.GetValueOrDefault(profile, $"{profile}.md");
+                await System.IO.File.WriteAllTextAsync(layout.OutputFile(outFile2), merged, ct);
+
+                var warning2  = await RunVerifyScriptAsync(profile, merged);
+                object? tok2  = totalUsage is null ? null : new { inputTokens = totalUsage.InputTokens, outputTokens = totalUsage.OutputTokens };
+                var doneJson2 = JsonSerializer.Serialize(new { done = true, output = merged, warning = warning2, tokens = tok2 });
+                await Response.WriteAsync($"data: {doneJson2}\n\n", ct);
+                await Response.Body.FlushAsync(ct);
+                return;
+            }
+        }
+
+        // code-analysis / patch(단일 저장소): 저장소 검색해 컨텍스트로 주입
+        var promptInput = tokenizedInput;
+        if (profile is "code-analysis" or "patch")
+        {
+            var gh       = settingsService.Get().GitHub;
+            var keywords = RepoSearchService.ExtractSearchKeywords(request.InputText);
+
+            var searchTasks = new List<Task<(string Label, List<RepoFile> Files)>>();
+            if (!string.IsNullOrWhiteSpace(gh.FrontendRepoUrl))
+                searchTasks.Add(SearchRepoAsync("Frontend", gh.FrontendRepoUrl, keywords, ct));
+            if (!string.IsNullOrWhiteSpace(gh.BackendRepoUrl))
+                searchTasks.Add(SearchRepoAsync("Backend",  gh.BackendRepoUrl,  keywords, ct));
+
+            if (searchTasks.Count > 0)
+            {
+                var results  = await Task.WhenAll(searchTasks);
+                var sections = results
+                    .Where(r => r.Files.Count > 0)
+                    .Select(r => $"## {r.Label} 코드 파일\n\n{RepoSearchService.BuildContext(r.Files)}");
+                var combined = string.Join("\n", sections);
+                if (!string.IsNullOrEmpty(combined))
+                    promptInput = $"{tokenizedInput}\n\n{combined}";
+            }
+        }
+
+        var prompt = await promptBuilder.BuildAsync(profile, promptInput);
+        await System.IO.File.WriteAllTextAsync(layout.PromptFile, prompt, ct);
+
+        var fullOutput = new StringBuilder();
 
         TokenUsage? usage;
         try
