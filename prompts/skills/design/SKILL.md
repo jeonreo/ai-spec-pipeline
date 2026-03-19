@@ -189,3 +189,12 @@ Each card may include:
 - Prefer reusable admin UI patterns over novel compositions.
 - Optimize for handoff quality, not visual flourish.
 - When the screen clearly matches a Clover admin list or detail pattern, include Clover adapter hints so the preview can look structurally close to the real product.
+
+---
+
+## Learn Agent 추가 지침
+
+## 추가 지침
+- design 출력 시작 전, meta.screenName과 purpose.summary가 입력받은 스펙의 기능 요약과 일치하는지 확인한다.
+- screenId는 스펙 파일명 또는 기능 식별자 기준으로 작성하며, 다른 기능의 값을 재사용하지 않는다.
+- 스펙과 design의 기능 범위가 다를 경우 출력을 중단하고 '입력 스펙 불일치'를 명시한다.
