@@ -173,9 +173,17 @@ public class RunController(
 
         var restored = piiTokenizer.Detokenize(fullOutput.ToString().TrimEnd(), piiMap);
 
-        // JSON 출력 스테이지: 마크다운 코드블록 마커 제거
-        if (profile is "jira" or "design" or "patch" or "learn")
+        // JSON 출력 스테이지: 코드블록 마커 제거 후 JSON 부분만 추출
+        if (profile is "jira" or "patch" or "learn")
+        {
             restored = StripCodeFence(restored);
+            restored = ExtractJsonContent(restored, expectArray: true);
+        }
+        else if (profile is "design")
+        {
+            restored = StripCodeFence(restored);
+            restored = ExtractJsonContent(restored, expectArray: false);
+        }
 
         // <!--STYLE--> 마커를 실제 CSS로 교체 (design 전용)
         var stylePath = promptBuilder.GetStyleInjectPath(profile);
@@ -322,6 +330,24 @@ public class RunController(
         if (s.TrimEnd().EndsWith("```"))
             s = s[..s.TrimEnd().LastIndexOf("```")];
         return s.Trim();
+    }
+
+    /// <summary>
+    /// JSON 프로파일 출력에서 실제 JSON 부분만 추출한다.
+    /// StripCodeFence 후에도 앞뒤에 설명 텍스트가 남아있을 때 fallback으로 사용.
+    /// </summary>
+    private static string ExtractJsonContent(string text, bool expectArray)
+    {
+        var open  = expectArray ? '[' : '{';
+        var close = expectArray ? ']' : '}';
+
+        var start = text.IndexOf(open);
+        if (start < 0) return text;
+
+        var end = text.LastIndexOf(close);
+        if (end < start) return text;
+
+        return text[start..(end + 1)];
     }
 
     private async Task<string?> RunVerifyScriptAsync(string profile, string outputContent)

@@ -70,8 +70,16 @@ public class RunStageHandler(
 
             // PII 복원 (출력 후)
             var restoredOutput = piiTokenizer.Detokenize(result.Stdout, piiMap);
-            if (command.Profile is "jira" or "design" or "patch")
+            if (command.Profile is "jira" or "patch" or "learn")
+            {
                 restoredOutput = StripCodeFence(restoredOutput);
+                restoredOutput = ExtractJsonContent(restoredOutput, expectArray: true);
+            }
+            else if (command.Profile is "design")
+            {
+                restoredOutput = StripCodeFence(restoredOutput);
+                restoredOutput = ExtractJsonContent(restoredOutput, expectArray: false);
+            }
 
             // Write output (복원된 결과 저장)
             var outPath = layout.OutputFile(job.OutputFile!);
@@ -122,5 +130,19 @@ public class RunStageHandler(
             s = trimmed[..trimmed.LastIndexOf("```", StringComparison.Ordinal)];
 
         return s.Trim();
+    }
+
+    private static string ExtractJsonContent(string text, bool expectArray)
+    {
+        var open  = expectArray ? '[' : '{';
+        var close = expectArray ? ']' : '}';
+
+        var start = text.IndexOf(open);
+        if (start < 0) return text;
+
+        var end = text.LastIndexOf(close);
+        if (end < start) return text;
+
+        return text[start..(end + 1)];
     }
 }
