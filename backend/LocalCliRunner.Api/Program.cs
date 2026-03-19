@@ -14,7 +14,8 @@ builder.Services.AddSingleton<GitCommitService>();
 builder.Services.AddSingleton<SettingsService>();
 builder.Services.AddSingleton<SlackService>();
 
-builder.Services.AddHttpClient(); // IHttpClientFactory for ClaudeVertexRunner + GitHubService
+builder.Services.AddHttpClient(); // IHttpClientFactory for SlackService + GitHubService
+builder.Services.AddHttpClient("vertex", c => c.Timeout = TimeSpan.FromSeconds(600)); // Vertex AI — long-running LLM calls
 
 // Runner 선택: Vertex:ProjectId가 있으면 Vertex, 없으면 로컬 ClaudeCliRunner
 // Vertex:Provider == "gemini" → GeminiVertexRunner, 그 외 → ClaudeVertexRunner (기본)

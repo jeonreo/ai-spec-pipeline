@@ -159,9 +159,23 @@ export default function App() {
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Fetch runner type on mount
+  // Fetch runner type on mount — 백엔드 준비 전이면 최대 30초 재시도
   useEffect(() => {
-    fetchSettings().then(s => { if (s.isVertex) setIsVertex(true) }).catch(() => {})
+    let cancelled = false
+    async function waitForSettings() {
+      for (let i = 0; i < 30; i++) {
+        if (cancelled) return
+        try {
+          const s = await fetchSettings()
+          if (!cancelled && s.isVertex) setIsVertex(true)
+          return
+        } catch {
+          await new Promise(r => setTimeout(r, 1000))
+        }
+      }
+    }
+    waitForSettings()
+    return () => { cancelled = true }
   }, [])
 
   // Auto-save session to localStorage (500ms debounce, 출력 100KB 초과 시 저장 생략)

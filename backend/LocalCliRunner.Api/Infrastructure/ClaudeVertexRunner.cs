@@ -32,7 +32,7 @@ public class ClaudeVertexRunner(
             var url     = BuildUrl(modelId, stream: false);
             var body    = BuildBody(promptContent, imagePaths);
 
-            using var client   = httpFactory.CreateClient();
+            using var client   = httpFactory.CreateClient("vertex");
             using var request  = new HttpRequestMessage(HttpMethod.Post, url);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             request.Content = new StringContent(body, Encoding.UTF8, "application/json");
@@ -70,7 +70,7 @@ public class ClaudeVertexRunner(
         var url    = BuildUrl(modelId, stream: true);
         var body   = BuildBody(promptContent, imagePaths);
 
-        using var client  = httpFactory.CreateClient();
+        using var client  = httpFactory.CreateClient("vertex");
         using var request = new HttpRequestMessage(HttpMethod.Post, url);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Content = new StringContent(body, Encoding.UTF8, "application/json");

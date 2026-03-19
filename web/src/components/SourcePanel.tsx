@@ -52,9 +52,23 @@ export default function SourcePanel({
 
   const defaultIssueTypeName = useRef('')
 
-  // Slack 설정 여부 확인
+  // Slack 설정 여부 확인 — 백엔드 준비 전이면 최대 30초 재시도
   useEffect(() => {
-    fetchSlackStatus().then(s => setSlackConfigured(s.configured)).catch(() => {})
+    let cancelled = false
+    async function waitForSlack() {
+      for (let i = 0; i < 30; i++) {
+        if (cancelled) return
+        try {
+          const s = await fetchSlackStatus()
+          if (!cancelled) setSlackConfigured(s.configured)
+          return
+        } catch {
+          await new Promise(r => setTimeout(r, 1000))
+        }
+      }
+    }
+    waitForSlack()
+    return () => { cancelled = true }
   }, [])
 
   // Load projects + status on mount, waiting for backend to be ready
