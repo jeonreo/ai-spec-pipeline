@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Tab, RunState } from '../App'
 import { TokenUsage, PushBranchResult, PrResult, LearnPatch } from '../api'
 import CardDetailDrawer from './CardDetailDrawer'
@@ -181,6 +181,16 @@ export default function KanbanBoard({
 }: BoardProps) {
   const [drawerTab, setDrawerTab] = useState<Tab | null>(null)
   const [learnChecked, setLearnChecked] = useState<Record<number, boolean>>({})
+  const [learnExpanded, setLearnExpanded] = useState(false)
+  const prevLearnState = useRef(runStates.learn)
+
+  useEffect(() => {
+    const prev = prevLearnState.current
+    const curr = runStates.learn
+    if (curr === 'running') setLearnExpanded(true)
+    if (prev === 'running' && curr === 'done') setLearnExpanded(false)
+    prevLearnState.current = curr
+  }, [runStates.learn])
 
   const doneCount    = ALL_STAGES.filter(t => runStates[t] === 'done').length
   const runningCount = ALL_STAGES.filter(t => runStates[t] === 'running').length
@@ -350,6 +360,15 @@ export default function KanbanBoard({
             {stale.learn && runStates.learn === 'done' && (
               <span className="task-tag task-tag--stale">stale</span>
             )}
+            {runStates.learn === 'done' && learnSuggestions.length > 0 && (
+              <button
+                onClick={() => setLearnExpanded(v => !v)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-2)', padding: '0 4px' }}
+                title={learnExpanded ? '접기' : `제안 ${learnSuggestions.length}개 보기`}
+              >
+                {learnExpanded ? '▲ 접기' : `▼ 제안 ${learnSuggestions.length}개`}
+              </button>
+            )}
           </div>
           <div className="pr-agent-bar-right">
             <button
@@ -363,7 +382,7 @@ export default function KanbanBoard({
           </div>
         </div>
 
-        {runStates.learn === 'done' && learnSuggestions.length > 0 && (
+        {runStates.learn === 'done' && learnSuggestions.length > 0 && learnExpanded && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {learnSuggestions.map((s, i) => (
               <label key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', padding: '6px 8px', background: 'var(--surface-2)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
@@ -394,7 +413,7 @@ export default function KanbanBoard({
           </div>
         )}
 
-        {runStates.learn === 'done' && learnSuggestions.length === 0 && outputs.learn && (
+        {runStates.learn === 'done' && learnSuggestions.length === 0 && outputs.learn && learnExpanded && (
           <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '4px 8px' }}>
             개선 제안이 없습니다. (출력이 JSON 형식이 아니거나 제안 없음)
           </div>
