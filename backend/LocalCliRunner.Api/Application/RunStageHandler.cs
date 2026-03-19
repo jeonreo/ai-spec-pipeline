@@ -70,7 +70,7 @@ public class RunStageHandler(
 
             // PII 복원 (출력 후)
             var restoredOutput = piiTokenizer.Detokenize(result.Stdout, piiMap);
-            if (command.Profile is "jira" or "design")
+            if (command.Profile is "jira" or "design" or "patch")
                 restoredOutput = StripCodeFence(restoredOutput);
 
             // Write output (복원된 결과 저장)

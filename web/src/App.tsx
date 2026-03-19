@@ -310,7 +310,12 @@ export default function App() {
     setPushResults([])
     setPrResults([])
     try {
-      const patches = JSON.parse(outputs.patch) as { repo?: string; path: string; content: string; comment?: string }[]
+      let patches: { repo?: string; path: string; content: string; comment?: string }[]
+      try {
+        patches = JSON.parse(outputs.patch)
+      } catch {
+        throw new Error('Patch 출력이 유효한 JSON이 아닙니다. Patch 스테이지를 재실행해 주세요.')
+      }
       const specLines = outputs.spec.split('\n')
       const title = specLines.find(l => l.startsWith('# '))?.slice(2).trim() ?? 'AI Draft: 코드 변경 제안'
 
@@ -346,7 +351,12 @@ export default function App() {
     setPrCreating(true)
     setPrResults([])
     try {
-      const patches = JSON.parse(outputs.patch) as { repo?: string; path: string; content: string; comment?: string }[]
+      let patches: { repo?: string; path: string; content: string; comment?: string }[]
+      try {
+        patches = JSON.parse(outputs.patch)
+      } catch {
+        throw new Error('Patch 출력이 유효한 JSON이 아닙니다. Patch 스테이지를 재실행해 주세요.')
+      }
       const specLines = outputs.spec.split('\n')
       const title = specLines.find(l => l.startsWith('# '))?.slice(2).trim() ?? 'AI Draft: 코드 변경 제안'
 
