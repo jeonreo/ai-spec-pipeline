@@ -8,6 +8,7 @@ Your job is not to generate HTML directly. Read the spec and output a single `De
 - Clover quick preview rendering
 - Figma Make prompt handoff
 - Cursor or Claude Code implementation guidance
+- FE code-analysis-fe agent input (fsdMapping 제공)
 
 ## Output Rules
 
@@ -120,6 +121,11 @@ Allowed `role` examples:
 
 - `figmaMakePrompt`: a concise prompt the designer can paste into Figma Make.
 - `implementationNotes`: short implementation constraints for Cursor or Claude Code.
+- `fsdMapping`: **반드시 포함**. spec에 FE 대상 도메인이 있으면 FSD 레이어별 예상 파일 경로를 추정한다.
+  - `entities`: `[{ "path": "entities/{domain}/model/types.ts", "role": "타입 정의" }, ...]`
+  - `features`: `[{ "path": "features/{domain}/lib/{hook}.ts", "role": "..." }, ...]`
+  - `pages`: `[{ "path": "pages/{page}/ui/{Page}.vue", "role": "페이지 진입점" }, ...]`
+  - FE 변경이 없는 스펙이면 각 배열을 `[]`로 출력한다.
 
 ### adapterHints.clover
 

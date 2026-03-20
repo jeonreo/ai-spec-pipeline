@@ -114,7 +114,21 @@
     "implementationNotes": [
       "[implementation note 1]",
       "[implementation note 2]"
-    ]
+    ],
+    "fsdMapping": {
+      "entities": [
+        { "path": "entities/[domain]/model/types.ts", "role": "타입 정의" },
+        { "path": "entities/[domain]/api/[domain]Api.ts", "role": "API 호출" },
+        { "path": "entities/[domain]/model/[domain]Queries.ts", "role": "TanStack Query 훅" },
+        { "path": "entities/[domain]/ui/[Component].vue", "role": "UI 컴포넌트" }
+      ],
+      "features": [
+        { "path": "features/[domain]/lib/[hook].ts", "role": "필터/액션 로직" }
+      ],
+      "pages": [
+        { "path": "pages/[page]/ui/[Page].vue", "role": "페이지 진입점" }
+      ]
+    }
   },
   "adapterHints": {
     "clover": {

@@ -16,7 +16,10 @@ public class PromptBuilder(IConfiguration config)
     };
 
     private static readonly HashSet<string> PolicyProfiles = ["spec", "jira"];
-    private static readonly HashSet<string> ArchitectureProfiles = ["spec", "code-analysis", "patch"];
+    // BE 아키텍처 문서를 주입할 프로파일
+    private static readonly HashSet<string> BeArchProfiles = ["spec", "code-analysis-be", "patch"];
+    // FE 아키텍처 문서를 주입할 프로파일
+    private static readonly HashSet<string> FeArchProfiles = ["spec", "code-analysis-fe", "patch"];
 
     public async Task<string> BuildAsync(string profile, string inputText)
     {
@@ -36,13 +39,19 @@ public class PromptBuilder(IConfiguration config)
             : string.Empty;
 
         var architectureSection = string.Empty;
-        if (ArchitectureProfiles.Contains(profile))
+        if (BeArchProfiles.Contains(profile) || FeArchProfiles.Contains(profile))
         {
-            var feArch = await TryReadContextAsync("fe-architecture.md");
-            var beArch = await TryReadContextAsync("be-architecture.md");
             var parts = new List<string>();
-            if (beArch is not null) parts.Add(beArch);
-            if (feArch is not null) parts.Add(feArch);
+            if (BeArchProfiles.Contains(profile))
+            {
+                var beArch = await TryReadContextAsync("be-architecture.md");
+                if (beArch is not null) parts.Add(beArch);
+            }
+            if (FeArchProfiles.Contains(profile))
+            {
+                var feArch = await TryReadContextAsync("fe-architecture.md");
+                if (feArch is not null) parts.Add(feArch);
+            }
             if (parts.Count > 0)
                 architectureSection = $"\n\n---\n\n## 코드베이스 아키텍처\n\n{string.Join("\n\n", parts)}";
         }

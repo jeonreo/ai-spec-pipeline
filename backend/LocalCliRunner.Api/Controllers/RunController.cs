@@ -22,7 +22,7 @@ public class RunController(
     RepoSearchService repoSearch) : ControllerBase
 {
     private static readonly HashSet<string> ValidProfiles =
-        ["intake", "spec", "jira", "qa", "design", "code-analysis", "patch", "learn"];
+        ["intake", "spec", "jira", "qa", "design", "code-analysis-be", "code-analysis-fe", "patch", "learn"];
 
     private static readonly Dictionary<string, string> OutputFiles = new()
     {
@@ -30,9 +30,10 @@ public class RunController(
         ["spec"]          = "spec.md",
         ["jira"]          = "jira.json",
         ["qa"]            = "qa.md",
-        ["design"]        = "design.json",
-        ["code-analysis"] = "code-analysis.md",
-        ["patch"]         = "patch.json",
+        ["design"]            = "design.json",
+        ["code-analysis-be"]  = "code-analysis-be.md",
+        ["code-analysis-fe"]  = "code-analysis-fe.md",
+        ["patch"]             = "patch.json",
         ["learn"]         = "learn.json",
     };
 
@@ -101,6 +102,42 @@ public class RunController(
         Response.Headers.Append("X-Accel-Buffering", "no");
 
         var (tokenizedInput, piiMap) = piiTokenizer.Tokenize(request.InputText);
+
+        // code-analysis-be / code-analysis-fe: 해당 저장소만 검색해 컨텍스트로 주입
+        var promptInput = tokenizedInput;
+        if (profile is "code-analysis-be" or "code-analysis-fe")
+        {
+            var gh       = settingsService.Get().GitHub;
+            var keywords = RepoSearchService.ExtractSearchKeywords(request.InputText);
+
+            var searchTasks = new List<Task<(string Label, List<RepoFile> Files)>>();
+            if (profile is "code-analysis-be")
+                if (!string.IsNullOrWhiteSpace(gh.BackendRepoUrl))
+                    searchTasks.Add(SearchRepoAsync("Backend", gh.BackendRepoUrl, keywords, ct));
+            if (profile is "code-analysis-fe")
+                if (!string.IsNullOrWhiteSpace(gh.FrontendRepoUrl))
+                    searchTasks.Add(SearchRepoAsync("Frontend", gh.FrontendRepoUrl, keywords, ct));
+
+            if (searchTasks.Count > 0)
+            {
+                var results = await Task.WhenAll(searchTasks);
+                var sections = results
+                    .Where(r => r.Files.Count > 0)
+                    .Select(r => $"## {r.Label} 코드 파일\n\n{RepoSearchService.BuildContext(r.Files)}");
+                var combined = string.Join("\n", sections);
+                if (!string.IsNullOrEmpty(combined))
+                    promptInput = $"{tokenizedInput}\n\n{combined}";
+            }
+
+            // code-analysis-fe: design.json이 allOutputs에 있으면 프롬프트에 주입
+            if (profile is "code-analysis-fe"
+                && request.AllOutputs?.TryGetValue("design", out var designJson) == true
+                && !string.IsNullOrEmpty(designJson))
+            {
+                promptInput = $"{promptInput}\n\n## Design Package (design.json)\n\n{designJson}";
+            }
+        }
+
 
         var workspacePath = workspaceManager.Create($"s-{Guid.NewGuid().ToString("N")[..6]}");
         var layout = new WorkspaceLayout(workspacePath);
@@ -205,9 +242,8 @@ public class RunController(
             }
         }
 
-        // code-analysis / patch(단일 저장소): 저장소 검색해 컨텍스트로 주입
-        var promptInput = tokenizedInput;
-        if (profile is "code-analysis" or "patch")
+        // patch(단일 저장소): 저장소 검색해 컨텍스트로 주입
+        if (profile is "patch")
         {
             var gh       = settingsService.Get().GitHub;
             var keywords = RepoSearchService.ExtractSearchKeywords(request.InputText);
@@ -555,7 +591,7 @@ public class RunController(
 public class HistoryController(WorkspaceManager workspaceManager) : ControllerBase
 {
     private static readonly string[] StageFiles =
-        ["intake.md", "spec.md", "jira.json", "qa.md", "design.json", "design.html"];
+        ["intake.md", "spec.md", "jira.json", "qa.md", "design.json", "design.html", "code-analysis-be.md", "code-analysis-fe.md"];
 
     // GET /api/history?page=1&pageSize=20&date=2026-03-05
     [HttpGet]
