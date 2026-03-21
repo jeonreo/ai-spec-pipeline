@@ -29,6 +29,10 @@ public class PipelineSettings
 
     [JsonPropertyName("github")]
     public GitHubSettings GitHub { get; set; } = new();
+
+    /// <summary>코드 검색 전체 예산 (KB). RepoSearchService.MaxTotalChars 대신 사용.</summary>
+    [JsonPropertyName("codeBudgetKb")]
+    public int CodeBudgetKb { get; set; } = 60;
 }
 
 /// <summary>

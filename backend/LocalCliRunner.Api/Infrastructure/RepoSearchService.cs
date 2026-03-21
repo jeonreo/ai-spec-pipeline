@@ -12,9 +12,9 @@ public record RepoFile(string Path, string Content);
 public class RepoSearchService(GitHubService gitHub, ILogger<RepoSearchService> logger)
 {
     private const int MaxFileChars  = 8_000;  // 파일 하나당 최대
-    private const int MaxTotalChars = 60_000; // 전체 컨텍스트 예산
+    private const int MaxTotalChars = 60_000; // 전체 컨텍스트 예산 (기본값)
 
-    public async Task<List<RepoFile>> SearchAsync(string repoUrl, string query, int maxFiles = 10, CancellationToken ct = default)
+    public async Task<List<RepoFile>> SearchAsync(string repoUrl, string query, int maxFiles = 10, int maxTotalChars = MaxTotalChars, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(repoUrl))
             return [];
@@ -29,7 +29,7 @@ public class RepoSearchService(GitHubService gitHub, ILogger<RepoSearchService> 
 
             foreach (var item in items)
             {
-                if (totalChars >= MaxTotalChars || ct.IsCancellationRequested) break;
+                if (totalChars >= maxTotalChars || ct.IsCancellationRequested) break;
                 try
                 {
                     var file    = await gitHub.GetFileContentAsync(repoUrl, item.Path, ct: ct);

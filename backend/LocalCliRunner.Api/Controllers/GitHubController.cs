@@ -42,6 +42,27 @@ public class GitHubController(
         return Ok(result);
     }
 
+    // GET /api/github/file-content?repo=frontend|backend&path=...
+    // Patch Diff 미리보기: 현재 저장소의 파일 원본 내용을 반환한다.
+    [HttpGet("file-content")]
+    public async Task<IActionResult> GetFileContent([FromQuery] string repo, [FromQuery] string path, CancellationToken ct)
+    {
+        var gh = settingsService.Get().GitHub;
+        var repoUrl = repo?.ToLower() == "frontend" ? gh.FrontendRepoUrl : gh.BackendRepoUrl;
+        if (string.IsNullOrWhiteSpace(repoUrl))
+            return NotFound(new { error = "저장소 URL이 설정되지 않았습니다." });
+
+        try
+        {
+            var file = await gitHub.GetFileContentAsync(repoUrl, path, ct: ct);
+            return Ok(new { content = file.Content });
+        }
+        catch (Exception ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+    }
+
     // POST /api/github/push
     // patch JSON의 repo 필드를 기준으로 FE·BE 저장소에 각각 브랜치를 생성하고 파일을 커밋한다.
     // PR은 생성하지 않는다.

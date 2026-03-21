@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Tab, RunState } from '../App'
 import JiraView from './JiraView'
 import DesignPackageView from './DesignPackageView'
-import { updatePolicy } from '../api'
+import { updatePolicy, fetchOriginalFile } from '../api'
 
 interface Props {
   tab: Tab
@@ -135,6 +135,99 @@ function SpecContentView({ content, onChange }: { content: string; onChange: (v:
   )
 }
 
+interface DiffLine { type: 'same' | 'add' | 'remove'; content: string }
+
+function computeDiff(original: string, updated: string): DiffLine[] {
+  const a = original.split('\n')
+  const b = updated.split('\n')
+  // Fall back to simple display for very large files
+  if (a.length > 600 || b.length > 600) {
+    return b.map(line => ({ type: 'same', content: line }))
+  }
+  // LCS DP table
+  const m = a.length, n = b.length
+  const dp = Array.from({ length: m + 1 }, () => new Int32Array(n + 1))
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1])
+  // Trace back
+  const ops: DiffLine[] = []
+  let i = m, j = n
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
+      ops.unshift({ type: 'same', content: a[i - 1] }); i--; j--
+    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      ops.unshift({ type: 'add', content: b[j - 1] }); j--
+    } else {
+      ops.unshift({ type: 'remove', content: a[i - 1] }); i--
+    }
+  }
+  return ops
+}
+
+function PatchFileDiff({ file, repo }: { file: { repo?: string; path: string; content: string; comment?: string }; repo: string }) {
+  const [mode, setMode]           = useState<'code' | 'diff'>('code')
+  const [original, setOriginal]   = useState<string | null>(null)
+  const [loading, setLoading]     = useState(false)
+  const [diffLines, setDiffLines] = useState<DiffLine[] | null>(null)
+
+  const loadDiff = useCallback(async () => {
+    if (original !== null) { setMode('diff'); return }
+    setLoading(true)
+    const orig = await fetchOriginalFile(repo, file.path)
+    setLoading(false)
+    if (orig === null) {
+      // New file — show all lines as added
+      setOriginal('')
+      setDiffLines(file.content.split('\n').map(line => ({ type: 'add', content: line })))
+    } else {
+      setOriginal(orig)
+      setDiffLines(computeDiff(orig, file.content))
+    }
+    setMode('diff')
+  }, [original, repo, file.path, file.content])
+
+  const addCount    = diffLines?.filter(l => l.type === 'add').length ?? 0
+  const removeCount = diffLines?.filter(l => l.type === 'remove').length ?? 0
+
+  return (
+    <details className="patch-file">
+      <summary className="patch-file-summary">
+        <span className="patch-file-path">{file.path}</span>
+        {file.comment && <span className="patch-file-comment">{file.comment}</span>}
+        {diffLines && (
+          <span className="patch-diff-stats">
+            {addCount > 0 && <span className="patch-stat-add">+{addCount}</span>}
+            {removeCount > 0 && <span className="patch-stat-remove">-{removeCount}</span>}
+          </span>
+        )}
+      </summary>
+      <div className="patch-file-toolbar">
+        <button
+          className={`patch-view-btn${mode === 'code' ? ' patch-view-btn--active' : ''}`}
+          onClick={() => setMode('code')}
+        >코드</button>
+        <button
+          className={`patch-view-btn${mode === 'diff' ? ' patch-view-btn--active' : ''}`}
+          onClick={loadDiff}
+          disabled={loading}
+        >{loading ? '로딩...' : 'Diff'}</button>
+      </div>
+      {mode === 'code' && <pre className="patch-file-content">{file.content}</pre>}
+      {mode === 'diff' && diffLines && (
+        <div className="patch-diff-view">
+          {diffLines.map((line, idx) => (
+            <div key={idx} className={`patch-diff-line patch-diff-line--${line.type}`}>
+              <span className="patch-diff-gutter">{line.type === 'add' ? '+' : line.type === 'remove' ? '-' : ' '}</span>
+              <span className="patch-diff-text">{line.content}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </details>
+  )
+}
+
 function PatchView({ content }: { content: string }) {
   interface PatchFile { repo?: string; path: string; content: string; comment?: string }
 
@@ -168,13 +261,7 @@ function PatchView({ content }: { content: string }) {
         <div key={repo} className="patch-repo-group">
           <div className="patch-repo-label">{repo.toUpperCase()} 저장소</div>
           {files.map((f, i) => (
-            <details key={i} className="patch-file">
-              <summary className="patch-file-summary">
-                <span className="patch-file-path">{f.path}</span>
-                {f.comment && <span className="patch-file-comment">{f.comment}</span>}
-              </summary>
-              <pre className="patch-file-content">{f.content}</pre>
-            </details>
+            <PatchFileDiff key={i} file={f} repo={repo} />
           ))}
         </div>
       ))}

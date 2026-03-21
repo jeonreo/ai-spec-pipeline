@@ -40,6 +40,12 @@ export default function SettingsModal({ onClose, isVertex }: Props) {
     setSaved(false)
   }
 
+  function handleBudgetChange(kb: number) {
+    if (!settings) return
+    setSettings({ ...settings, codeBudgetKb: kb })
+    setSaved(false)
+  }
+
   async function handleSave() {
     if (!settings) return
     setSaving(true)
@@ -98,6 +104,26 @@ export default function SettingsModal({ onClose, isVertex }: Props) {
                   ))}
                 </tbody>
               </table>
+
+              <div className="settings-budget-row">
+                <label className="settings-budget-label">
+                  코드 검색 예산
+                  <span className="settings-budget-value">{settings.codeBudgetKb ?? 60} KB</span>
+                </label>
+                <input
+                  type="range"
+                  min={20}
+                  max={200}
+                  step={10}
+                  value={settings.codeBudgetKb ?? 60}
+                  onChange={e => handleBudgetChange(Number(e.target.value))}
+                  className="settings-budget-slider"
+                />
+                <div className="settings-budget-hints">
+                  <span>20 KB (빠름)</span>
+                  <span>200 KB (풍부)</span>
+                </div>
+              </div>
 
               {error && <p className="settings-error">{error}</p>}
 

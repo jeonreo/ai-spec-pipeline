@@ -17,7 +17,17 @@ const EMPTY_TOKENS:  Record<Tab, TokenUsage | null> = { intake: null, spec: null
 const EMPTY_WARNINGS: Record<Tab, string>           = { intake: '', spec: '', jira: '', qa: '', design: '', 'code-analysis': '', patch: '', learn: '' }
 const EMPTY_SIGNATURES: Record<Tab, string>         = { intake: '', spec: '', jira: '', qa: '', design: '', 'code-analysis': '', patch: '', learn: '' }
 
-const SESSION_KEY = 'ai-spec-pipeline-session'
+const SESSION_KEY      = 'ai-spec-pipeline-session'
+const JIRA_DEFAULTS_KEY = 'ai-spec-pipeline-jira-defaults'
+
+function loadJiraDefaults(): { projectKey: string; issueTypeName: string } {
+  try {
+    const raw = localStorage.getItem(JIRA_DEFAULTS_KEY)
+    return raw ? JSON.parse(raw) : { projectKey: '', issueTypeName: '' }
+  } catch { return { projectKey: '', issueTypeName: '' } }
+}
+
+const _jiraDefaults = loadJiraDefaults()
 
 function loadSession() {
   try {
@@ -138,8 +148,8 @@ export default function App() {
   )
   const [decisions, setDecisions] = useState<string>(_saved?.decisions ?? '')
   const [decisionsConfirmed, setDecisionsConfirmed] = useState<boolean>(_saved?.decisionsConfirmed ?? false)
-  const [jiraProjectKey, setJiraProjectKey] = useState<string>(_saved?.jiraProjectKey ?? '')
-  const [jiraIssueTypeName, setJiraIssueTypeName] = useState<string>(_saved?.jiraIssueTypeName ?? '')
+  const [jiraProjectKey, setJiraProjectKey] = useState<string>(_saved?.jiraProjectKey ?? _jiraDefaults.projectKey)
+  const [jiraIssueTypeName, setJiraIssueTypeName] = useState<string>(_saved?.jiraIssueTypeName ?? _jiraDefaults.issueTypeName)
   const [projectKnowledge, setProjectKnowledge] = useState<string>(_saved?.projectKnowledge ?? '')
   const [jiraIssueKey, setJiraIssueKey] = useState<string>(_saved?.jiraIssueKey ?? '')
   const [jiraLinkError, setJiraLinkError] = useState<string>('')
@@ -497,7 +507,11 @@ export default function App() {
             stale={stale}
             jiraProjectKey={jiraProjectKey}
             jiraIssueTypeName={jiraIssueTypeName}
-            onJiraConfigChange={(key, type) => { setJiraProjectKey(key); setJiraIssueTypeName(type) }}
+            onJiraConfigChange={(key, type) => {
+              setJiraProjectKey(key)
+              setJiraIssueTypeName(type)
+              try { localStorage.setItem(JIRA_DEFAULTS_KEY, JSON.stringify({ projectKey: key, issueTypeName: type })) } catch { /* ignore */ }
+            }}
             projectKnowledge={projectKnowledge}
             onProjectKnowledgeChange={setProjectKnowledge}
             decisions={decisions}

@@ -434,7 +434,8 @@ public class RunController(
 
     private async Task<(string Label, List<RepoFile> Files)> SearchRepoAsync(string label, string repoUrl, string keywords, CancellationToken ct)
     {
-        var files = await repoSearch.SearchAsync(repoUrl, keywords, ct: ct);
+        var budgetKb = settingsService.Get().CodeBudgetKb;
+        var files = await repoSearch.SearchAsync(repoUrl, keywords, maxTotalChars: budgetKb * 1000, ct: ct);
         return (label, files);
     }
 
@@ -696,6 +697,7 @@ public class LearnController(PromptBuilder promptBuilder) : ControllerBase
                     continue;
                 }
                 var existing = await System.IO.File.ReadAllTextAsync(skillPath);
+                await System.IO.File.WriteAllTextAsync(skillPath + ".bak", existing);
                 var updated  = existing.TrimEnd() + "\n\n---\n\n## Learn Agent 추가 지침\n\n" + patch.SkillPatch.Trim();
                 await System.IO.File.WriteAllTextAsync(skillPath, updated);
                 applied.Add(patch.Stage);

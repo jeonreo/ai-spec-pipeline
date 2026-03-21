@@ -1783,6 +1783,35 @@ body {
   font-size: 13px;
 }
 .settings-model-select:focus { outline: none; border-color: var(--accent); }
+.settings-budget-row {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.settings-budget-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+.settings-budget-value {
+  font-family: monospace;
+  color: var(--accent);
+  font-weight: 600;
+}
+.settings-budget-slider {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.settings-budget-hints {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
 .settings-footer {
   display: flex;
   align-items: center;
@@ -2138,3 +2167,60 @@ body {
   border-top: 1px solid var(--border);
   line-height: 1.6;
 }
+
+/* Diff 뷰 */
+.patch-diff-stats { display: flex; gap: 4px; margin-left: 6px; font-family: monospace; font-size: 11px; }
+.patch-stat-add    { color: #22c55e; font-weight: 700; }
+.patch-stat-remove { color: #ef4444; font-weight: 700; }
+
+.patch-file-toolbar {
+  display: flex;
+  gap: 4px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.patch-view-btn {
+  font-size: 11px;
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.patch-view-btn--active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.patch-view-btn:disabled { opacity: 0.5; cursor: default; }
+
+.patch-diff-view {
+  font-size: 11px;
+  font-family: monospace;
+  overflow: auto;
+  max-height: 400px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  line-height: 1.5;
+}
+.patch-diff-line {
+  display: flex;
+  align-items: baseline;
+  white-space: pre;
+}
+.patch-diff-line--add    { background: rgba(34, 197, 94, 0.12); }
+.patch-diff-line--remove { background: rgba(239, 68, 68, 0.12); }
+.patch-diff-gutter {
+  width: 18px;
+  min-width: 18px;
+  text-align: center;
+  color: var(--muted);
+  user-select: none;
+  padding: 0 2px;
+}
+.patch-diff-line--add    .patch-diff-gutter { color: #22c55e; }
+.patch-diff-line--remove .patch-diff-gutter { color: #ef4444; }
+.patch-diff-text { flex: 1; padding: 0 8px; }
+

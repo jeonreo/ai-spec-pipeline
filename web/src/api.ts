@@ -402,6 +402,7 @@ export interface PipelineSettings {
   stageModels: Record<string, string>
   github: GitHubSettings
   isVertex?: boolean
+  codeBudgetKb?: number
 }
 
 export async function fetchSettings(): Promise<PipelineSettings> {
@@ -418,6 +419,14 @@ export async function saveSettings(settings: PipelineSettings): Promise<Pipeline
   })
   if (!res.ok) throw new Error()
   return res.json()
+}
+
+export async function fetchOriginalFile(repo: string, path: string): Promise<string | null> {
+  const params = new URLSearchParams({ repo, path })
+  const res = await fetch(`/api/github/file-content?${params}`)
+  if (!res.ok) return null
+  const data = await res.json().catch(() => null)
+  return data?.content ?? null
 }
 
 // ── Learn Agent ───────────────────────────────────────────────────────────────
