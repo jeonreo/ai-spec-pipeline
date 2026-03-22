@@ -174,12 +174,16 @@ public class RunController(
                 var searchResults = await Task.WhenAll(
                     repoTargets.Select(r => SearchRepoAsync(r.Label, r.Url, keywords, ct)));
 
+                // 파일이 검색된 저장소가 2개 미만이면 단일 호출 경로로 fallback
+                var reposWithFiles = searchResults.Where(r => r.Files.Count > 0).ToList();
+                if (reposWithFiles.Count < 2)
+                    goto SingleCall;
+
                 var allPatches  = new List<JsonElement>();
                 TokenUsage? totalUsage = null;
 
-                foreach (var (label, files) in searchResults)
+                foreach (var (label, files) in reposWithFiles)
                 {
-                    if (files.Count == 0) continue;
 
                     // 진행 표시 (구분 헤더)
                     var sep = JsonSerializer.Serialize(new { chunk = $"\n\n// ===== {label} 패치 생성 중... =====\n\n" });
@@ -242,7 +246,8 @@ public class RunController(
             }
         }
 
-        // patch(단일 저장소): 저장소 검색해 컨텍스트로 주입
+        // patch(단일 저장소 또는 검색 결과 부족): 저장소 검색해 컨텍스트로 주입
+        SingleCall:
         if (profile is "patch")
         {
             var gh       = settingsService.Get().GitHub;
