@@ -133,15 +133,21 @@
   "adapterHints": {
     "clover": {
       "layoutPattern": "list-layout",
-      "menuGroup": "[menu group]",
+      "menuGroup": "[menu group — one of: Account, License, Sales, Crack, Software, CLOUDscan, Analysis, Legal, Finance, Statistics]",
       "menuItems": [
-        "[menu item 1]",
-        "[menu item 2]"
+        "[active menu item]",
+        "[sub-menu item if 2nd depth]"
       ],
       "breadcrumbs": [
-        "[breadcrumb 1]",
-        "[breadcrumb 2]"
+        "[top-level menu name]",
+        "[current page name]"
       ],
+      "_layoutRef": {
+        "snbWidth": "270px (expanded) / 50px (collapsed)",
+        "headerHeight": "58px",
+        "contentWidth": "1610px @ 1920px breakpoint",
+        "contentPadding": "S5 (20px) all sides"
+      },
       "toolbar": {
         "primarySearchPlaceholder": "[search placeholder 1]",
         "secondarySearchPlaceholder": "[search placeholder 2 — optional, omit if single search]",

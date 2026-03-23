@@ -198,6 +198,88 @@ Each card may include:
 
 ---
 
+## CLOver Design System Reference
+
+> Extracted from CLOver Design System Figma (💚 CLOver Design System)
+
+### Responsive Layout Grid
+
+| Breakpoint | SNB Width | Header Height | Content Width | Side Padding |
+|------------|-----------|---------------|---------------|--------------|
+| ≥ 1920px   | 270px (expanded) | 58px | 1610px | S5 (20px) |
+| > 1920px (2560+) | 270px | 58px | 1610px (max, centered) | S5 |
+| 1440px     | 50px (collapsed) | 58px | 1350px | S5 (20px) |
+| 1280px     | 50px (collapsed) | 58px | 1190px | S5 (20px) |
+
+- Content area origin: `SNB width + S5` from left edge
+- Gap between Header bottom and body: S5 (20px)
+- S5 spacing token = 20px
+
+### SNB Component Specs
+
+| State | Width | Height |
+|-------|-------|--------|
+| `Collapsed=Off` (expanded) | 270px | 100vh |
+| `Collapsed=On` (collapsed) | 50px | 100vh |
+
+Sub-components:
+- `.SNB Header` — 270 × 89px (product logo + name area)
+- `.SNB Items` 1st depth — 240 × 54px
+- `.SNB Items` 2nd depth — 220 × 44px
+- `.SNB Items` section divider — 240 × 30px
+- `.SNB Collapsed` toggle button — 28 × 28px
+
+Product variants: `CLO`, `MD`, `MABULOUS`
+
+#### CLO Product SNB Menu Structure
+```
+Account
+License
+Sales
+Crack
+Software ▸
+  Search Report
+  Brand List
+  Market Ranking
+  Software Activity List
+  Early Alert
+  Update Download
+CLOUDscan ▸
+  CLO3D-List
+Analysis
+Legal
+Finance
+Statistics
+```
+
+### Header Component
+
+- Height: 58px
+- Width: `viewport width − SNB width`
+- Contains: product logo/brand, breadcrumb or page title, user/action icon area
+
+### Typography Scale
+
+| Token | Typical Usage |
+|-------|--------------|
+| Title1 | Page title, modal header |
+| Title2 | Section title, card header |
+| Subtitle | Sub-section label, panel title |
+| Body | Default body text |
+| Column Header | Table column headers |
+| Caption | Metadata, timestamps, helper text |
+
+Font sizes have two variants per token: **1920px breakpoint** and **1440px breakpoint**.
+
+### Layout Page Patterns
+
+From the `layout sample` reference frame (1920px):
+- Page body top bar: Card Title (1380px) + 2 × Button (110px each, 40px height), right-aligned
+- Content card: 1610px wide, 100px height minimum
+- Typical button size: 40px height × 110px width
+
+---
+
 ## Learn Agent 추가 지침
 
 ## 추가 지침
