@@ -56,7 +56,7 @@ graph TB
     RUN --> PB
     RUN --> JOB
     RUN --> SEARCH
-    PB -->|base.system.md + policy.md\n+ SKILL.md + input| PROMPTS
+    PB -->|base.system + agent persona\n+ policy + SKILL + input| PROMPTS
 
     RUN -->|Runner 선택| CLAUDE_CLI
     RUN -->|Vertex.ProjectId 설정 시| CLAUDE_VTX
@@ -90,14 +90,18 @@ flowchart LR
     SPEC --> JIRA
     SPEC --> QA
     SPEC --> DESIGN
-    SPEC --> CODE_ANALYSIS
+    SPEC --> CODE_ANALYSIS_BE
+    SPEC --> CODE_ANALYSIS_FE
+    DESIGN --> CODE_ANALYSIS_FE
 
     JIRA[jira\nHaiku 4.5\nJSON 티켓]
     QA[qa\nSonnet 4.6\n테스트 케이스]
     DESIGN[design\nHaiku 4.5\nDesign Package v1]
-    CODE_ANALYSIS[code-analysis\nSonnet 4.6\nGitHub 코드 분석]
+    CODE_ANALYSIS_BE[code-analysis-be\nSonnet 4.6\nBE 변경 분석]
+    CODE_ANALYSIS_FE[code-analysis-fe\nSonnet 4.6\nFE 변경 분석]
 
-    CODE_ANALYSIS --> PATCH
+    CODE_ANALYSIS_BE --> PATCH
+    CODE_ANALYSIS_FE --> PATCH
     PATCH[patch\nSonnet 4.6\nJSON 파일 패치]
 
     PATCH --> PUSH[GitHub\nBranch Push]
@@ -109,7 +113,8 @@ flowchart LR
     style JIRA fill:#6c757d,color:#fff
     style QA fill:#4a9eff,color:#fff
     style DESIGN fill:#6c757d,color:#fff
-    style CODE_ANALYSIS fill:#4a9eff,color:#fff
+    style CODE_ANALYSIS_BE fill:#4a9eff,color:#fff
+    style CODE_ANALYSIS_FE fill:#4a9eff,color:#fff
     style PATCH fill:#4a9eff,color:#fff
 ```
 
@@ -211,15 +216,19 @@ sequenceDiagram
 ```mermaid
 graph LR
     subgraph 조립 순서
-        A[base.system.md\n전역 지시사항]
-        B[policy.md\n비즈니스 정책\nspec/jira 스테이지만]
-        C[SKILL.md\n에이전트 역할 + 출력 포맷]
+        A[base.system.md\n전역 품질 원칙]
+        AG[agents/name.md\n전문가 페르소나]
+        B[policy.md\n비즈니스 정책\nspec/jira만]
+        ARCH[context/architecture.md\nFE/BE 아키텍처\nspec/code-analysis/patch만]
+        C[SKILL.md\n스테이지 절차 + 출력 규칙]
         D[template.md\n출력 스키마 참조]
         E[Input Text\n사용자 데이터\n+ 상위 스테이지 출력]
     end
 
     A --> PROMPT[최종 프롬프트]
+    AG -.->|매핑된 스테이지| PROMPT
     B -.->|조건부| PROMPT
+    ARCH -.->|조건부| PROMPT
     C --> PROMPT
     D --> PROMPT
     E --> PROMPT
@@ -246,7 +255,8 @@ graph TD
     QA_MD[qa.md]
     DESIGN_JSON[design.json]
     DESIGN_HTML[design.html]
-    CA_MD[code-analysis.md]
+    CA_BE_MD[code-analysis-be.md]
+    CA_FE_MD[code-analysis-fe.md]
     PATCH_JSON[patch.json]
 
     LOG_FILE[run.log]
@@ -263,7 +273,8 @@ graph TD
     OUT --> QA_MD
     OUT --> DESIGN_JSON
     OUT --> DESIGN_HTML
-    OUT --> CA_MD
+    OUT --> CA_BE_MD
+    OUT --> CA_FE_MD
     OUT --> PATCH_JSON
     LOGS --> LOG_FILE
     LOGS --> META
@@ -286,13 +297,15 @@ flowchart TD
 
 ## 스테이지별 모델 / 입출력 요약
 
-| 스테이지 | 기본 모델 | 입력 | 출력 형식 |
-|---------|---------|------|---------|
-| intake | Haiku 4.5 | 비정형 텍스트 | Markdown (문제 정의 + Q&A) |
-| spec | Sonnet 4.6 | intake + decisions | Markdown (SSOT 스펙) |
-| jira | Haiku 4.5 | spec | JSON |
-| qa | Sonnet 4.6 | spec | Markdown (테스트 케이스) |
-| design | Haiku 4.5 | spec | JSON (Design Package v1) |
-| code-analysis | Sonnet 4.6 | spec + GitHub 코드 | Markdown |
-| patch | Sonnet 4.6 | code-analysis + spec | JSON 배열 |
-| policy-update | Sonnet 4.6 | policy + 새 결정사항 | Markdown |
+| 스테이지 | 에이전트 | 기본 모델 | 입력 | 출력 형식 |
+|---------|---------|---------|------|---------|
+| intake | pm | Haiku 4.5 | 비정형 텍스트 | Markdown (문제 정의 + Q&A) |
+| spec | pm | Sonnet 4.6 | intake + decisions | Markdown (SSOT 스펙) |
+| jira | pm | Haiku 4.5 | spec | JSON |
+| design | pd | Haiku 4.5 | spec | JSON (Design Package v1) |
+| code-analysis-be | be-dev | Sonnet 4.6 | spec + BE GitHub 코드 | Markdown |
+| code-analysis-fe | fe-dev | Sonnet 4.6 | spec + Design Package + FE GitHub 코드 | Markdown |
+| patch | fe-dev | Sonnet 4.6 | code-analysis + spec | JSON 배열 |
+| qa | qa-eng | Sonnet 4.6 | spec | Markdown (테스트 케이스) |
+| learn | — | Sonnet 4.6 | 전체 파이프라인 출력 | JSON |
+| policy-update | — | Sonnet 4.6 | policy + 새 결정사항 | Markdown |
