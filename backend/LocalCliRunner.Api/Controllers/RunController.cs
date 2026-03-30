@@ -477,9 +477,6 @@ public class RunController(
 
     private async Task<string?> RunVerifyScriptAsync(string profile, string outputContent)
     {
-        if (profile == "design")
-            return null;
-
         var builtInWarning = RunBuiltInVerify(profile, outputContent);
         if (profile == "jira" || builtInWarning is not null)
             return builtInWarning;
@@ -531,9 +528,10 @@ public class RunController(
     private static string? RunBuiltInVerify(string profile, string outputContent) =>
         profile switch
         {
-            "jira"  => VerifyJiraOutput(outputContent),
-            "patch" => VerifyPatchOutput(outputContent),
-            _       => null,
+            "jira"   => VerifyJiraOutput(outputContent),
+            "patch"  => VerifyPatchOutput(outputContent),
+            "design" => VerifyDesignOutput(outputContent),
+            _        => null,
         };
 
     private static string? VerifyPatchOutput(string outputContent)
@@ -588,6 +586,31 @@ public class RunController(
         catch (JsonException ex)
         {
             return $"Jira JSON 파싱 실패: {ex.Message}";
+        }
+    }
+
+    private static string? VerifyDesignOutput(string outputContent)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(outputContent);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object)
+                return "Design 결과는 JSON object여야 합니다.";
+
+            var root = doc.RootElement;
+            var missing = new List<string>();
+
+            foreach (var field in new[] { "version", "meta", "layout", "sections", "components", "handoff" })
+            {
+                if (!root.TryGetProperty(field, out _))
+                    missing.Add($"\"{field}\"");
+            }
+
+            return missing.Count > 0 ? $"누락 필드: {string.Join(" ", missing)}" : null;
+        }
+        catch (JsonException ex)
+        {
+            return $"Design JSON 파싱 실패: {ex.Message}";
         }
     }
 }

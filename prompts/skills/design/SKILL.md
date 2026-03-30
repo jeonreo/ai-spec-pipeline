@@ -1,6 +1,6 @@
 ---
 name: design
-description: Create a design-system-agnostic Design Package v1 JSON from the spec. The current rendering target is Clover Admin Design System.
+description: "기능 스펙의 기능 요약과 UI 구성 섹션을 기반으로 Design Package v1 JSON을 생성. version/meta/purpose/layout/sections/dataModel/components/states/interactions/styleNotes/handoff 필드를 포함하며, CLOver Admin Design System 어댑터 힌트를 통해 즉시 프리뷰 렌더링이 가능. Figma Make 핸드오프 프롬프트와 개발 구현 가이드를 제공. 유효한 JSON만 출력하며 HTML/CSS/설명 텍스트는 절대 포함하지 않음."
 ---
 
 Your job is not to generate HTML directly. Read the spec and output a single `Design Package v1` JSON object that can be used for:

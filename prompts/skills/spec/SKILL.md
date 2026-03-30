@@ -1,6 +1,6 @@
 ---
 name: spec
-description: 문제 정의를 기반으로 실행 가능한 기능 스펙 작성
+description: "intake 문서와 PM 결정사항을 기반으로, 개발자가 추가 질문 없이 즉시 구현을 시작할 수 있는 수준의 기능 스펙을 작성. BE는 CQRS(Command/Query) 구조, FE는 FSD 레이어와 CLOver 토큰을 명시하며, API 경로/파라미터/응답/에러코드, UI 컴포넌트 상태와 동작, 도메인 모델 변경, 예외 처리를 모두 포함하는 SSOT 문서."
 ---
 
 문제 정의를 분석하여 template.md 구조에 맞는 기능 스펙을 작성한다.

@@ -21,16 +21,36 @@ public class PromptBuilder(IConfiguration config)
     // FE 아키텍처 문서를 주입할 프로파일
     private static readonly HashSet<string> FeArchProfiles = ["spec", "code-analysis-fe", "patch"];
 
+    private static readonly Dictionary<string, string> AgentProfiles = new()
+    {
+        ["intake"]           = "pm",
+        ["spec"]             = "pm",
+        ["jira"]             = "pm",
+        ["qa"]               = "qa-eng",
+        ["design"]           = "pd",
+        ["code-analysis-be"] = "be-dev",
+        ["code-analysis-fe"] = "fe-dev",
+        ["patch"]            = "fe-dev",
+    };
+
     public async Task<string> BuildAsync(string profile, string inputText)
     {
         var baseMd = await ReadPromptAsync("base.system.md");
         var skillMd = await ReadSkillAsync(profile, "SKILL.md");
         var header = TaskHeaders.GetValueOrDefault(profile, $"Output only the {profile} document.");
 
+        var agentSection = string.Empty;
+        if (AgentProfiles.TryGetValue(profile, out var agentName))
+        {
+            var agentMd = await TryReadAgentAsync(agentName);
+            if (agentMd is not null)
+                agentSection = $"\n\n---\n\n{agentMd}";
+        }
+
         if (profile == "policy-update")
         {
             var policyMd = await ReadPromptAsync("policy.md");
-            return $"{header}\n\n---\n\n{baseMd}\n\n---\n\n{skillMd}\n\n---\n\n## 현재 정책\n\n{policyMd}\n\n---\n\n## 새 결정사항\n\n{inputText}";
+            return $"{header}\n\n---\n\n{baseMd}{agentSection}\n\n---\n\n{skillMd}\n\n---\n\n## 현재 정책\n\n{policyMd}\n\n---\n\n## 새 결정사항\n\n{inputText}";
         }
 
         var templateMd = await TryReadSkillAsync(profile, "template.md");
@@ -59,10 +79,10 @@ public class PromptBuilder(IConfiguration config)
         if (PolicyProfiles.Contains(profile))
         {
             var policyMd = await ReadPromptAsync("policy.md");
-            return $"{header}\n\n---\n\n{baseMd}\n\n---\n\n{policyMd}{architectureSection}\n\n---\n\n{skillMd}{templateSection}\n\n---\n\n## Input\n\n{inputText}";
+            return $"{header}\n\n---\n\n{baseMd}{agentSection}\n\n---\n\n{policyMd}{architectureSection}\n\n---\n\n{skillMd}{templateSection}\n\n---\n\n## Input\n\n{inputText}";
         }
 
-        return $"{header}\n\n---\n\n{baseMd}{architectureSection}\n\n---\n\n{skillMd}{templateSection}\n\n---\n\n## Input\n\n{inputText}";
+        return $"{header}\n\n---\n\n{baseMd}{agentSection}{architectureSection}\n\n---\n\n{skillMd}{templateSection}\n\n---\n\n## Input\n\n{inputText}";
     }
 
     public Task<string> ReadPolicyAsync() => ReadPromptAsync("policy.md");
@@ -92,6 +112,18 @@ public class PromptBuilder(IConfiguration config)
         try
         {
             return await ReadSkillAsync(profile, filename);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private async Task<string?> TryReadAgentAsync(string agentName)
+    {
+        try
+        {
+            return await File.ReadAllTextAsync(Path.Combine(_promptsDir, "agents", $"{agentName}.md"));
         }
         catch
         {

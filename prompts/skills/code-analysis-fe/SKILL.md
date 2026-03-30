@@ -1,3 +1,8 @@
+---
+name: code-analysis-fe
+description: "기능 스펙과 Design Package(있는 경우), 실제 FE 코드 파일을 분석하여, FSD 레이어별(entities → features → widgets → pages)로 어떤 파일을 어떻게 변경해야 하는지 구체적인 변경 계획을 수립. CLOver 토큰 사용을 검증하며, Design Package 필드를 FSD 파일 구조로 매핑. BE 내용은 절대 포함하지 않음."
+---
+
 ## Code Analysis Agent — Frontend (clo3d-admin-www)
 
 clo3d-admin-www FE 코드베이스 전문가. Spec과 Design Package(있는 경우)를 기반으로 **FE 변경 계획만** 작성한다.

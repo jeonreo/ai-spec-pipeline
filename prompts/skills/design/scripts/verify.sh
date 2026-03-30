@@ -8,11 +8,12 @@ else
   CONTENT="$OUTPUT_CONTENT"
 fi
 
-echo "$CONTENT" | grep -qF '<!DOCTYPE'    || { MISSING="$MISSING [<!DOCTYPE html>]"; FAIL=1; }
-echo "$CONTENT" | grep -qF '</html>'      || { MISSING="$MISSING [</html>]";         FAIL=1; }
-echo "$CONTENT" | grep -qF 'class="snb'  || { MISSING="$MISSING [snb]";             FAIL=1; }
-echo "$CONTENT" | grep -qF 'class="card' || { MISSING="$MISSING [card]";            FAIL=1; }
-echo "$CONTENT" | grep -qF '<table'       || { MISSING="$MISSING [<table]";          FAIL=1; }
+echo "$CONTENT" | grep -qF '"version"'    || { MISSING="$MISSING \"version\"";    FAIL=1; }
+echo "$CONTENT" | grep -qF '"meta"'       || { MISSING="$MISSING \"meta\"";       FAIL=1; }
+echo "$CONTENT" | grep -qF '"layout"'     || { MISSING="$MISSING \"layout\"";     FAIL=1; }
+echo "$CONTENT" | grep -qF '"sections"'   || { MISSING="$MISSING \"sections\"";   FAIL=1; }
+echo "$CONTENT" | grep -qF '"components"' || { MISSING="$MISSING \"components\""; FAIL=1; }
+echo "$CONTENT" | grep -qF '"handoff"'    || { MISSING="$MISSING \"handoff\"";    FAIL=1; }
 
-[ $FAIL -ne 0 ] && echo "누락 요소:$MISSING"
+[ $FAIL -ne 0 ] && echo "누락 필드:$MISSING"
 exit $FAIL

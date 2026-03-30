@@ -1,6 +1,6 @@
 ---
 name: jira
-description: 기능 스펙을 Jira 티켓 JSON으로 변환
+description: "기능 스펙을 Jira Cloud REST API에 즉시 전송 가능한 JSON 객체로 변환. summary(50자 이내), description(배경/문제/범위/의존성/롤아웃/모니터링), acceptance_criteria(검증 가능한 완료 조건 5개 이상)를 포함. 코드펜스나 설명 없이 순수 JSON만 출력하며, 의존성 중 미결 항목은 별도 표기."
 ---
 
 아래 JSON 템플릿을 채워 출력하라.
