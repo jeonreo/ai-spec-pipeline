@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using LocalCliRunner.Api.Domain;
 using LocalCliRunner.Api.Workspace;
 
@@ -24,6 +25,7 @@ public class SlackWorkflowService
     private readonly ILogger<SlackWorkflowService> logger;
     private readonly ConcurrentDictionary<string, WorkflowState> _workflows = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, byte> _processedMentionStarts = new(StringComparer.Ordinal);
 
     public SlackWorkflowService(
         WorkspaceManager workspaceManager,
@@ -80,6 +82,71 @@ public class SlackWorkflowService
         string initialText,
         CancellationToken ct = default)
     {
+        return await StartWorkflowAsync(
+            userId,
+            userName,
+            initialText,
+            null,
+            "Slack workflow started.",
+            null,
+            ct);
+    }
+
+    public async Task<WorkflowState> StartWorkflowFromMentionAsync(
+        string userId,
+        string userName,
+        string channelId,
+        string messageTs,
+        string? threadTs,
+        string eventId,
+        string initialText,
+        CancellationToken ct = default)
+    {
+        var origin = new SlackOriginRef
+        {
+            TriggerType = "app_mention",
+            ChannelId = channelId,
+            MessageTs = messageTs,
+            ThreadTs = threadTs ?? "",
+            EventId = eventId,
+        };
+
+        var workflow = await StartWorkflowAsync(
+            userId,
+            userName,
+            initialText,
+            origin,
+            "Slack workflow started from a channel mention.",
+            $"Captured from <#{channelId}> and continuing in DM.",
+            ct);
+
+        try
+        {
+            var channelMessage = $"Picked up this request and started a DM workflow with <@{userId}>.";
+            await slackBotService.PostMessageAsync(
+                channelId,
+                channelMessage,
+                null,
+                string.IsNullOrWhiteSpace(threadTs) ? messageTs : threadTs,
+                ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to post mention acknowledgement for workflow {WorkflowId}", workflow.Id);
+        }
+
+        return workflow;
+    }
+
+    private async Task<WorkflowState> StartWorkflowAsync(
+        string userId,
+        string userName,
+        string initialText,
+        SlackOriginRef? origin,
+        string rootMessageText,
+        string? startedSummary,
+        CancellationToken ct)
+    {
         var workspacePath = workspaceManager.Create($"wf-{Guid.NewGuid().ToString("N")[..6]}");
         var workspaceId = Path.GetFileName(workspacePath);
         var channelId = await slackBotService.OpenDirectMessageAsync(userId, ct);
@@ -101,6 +168,7 @@ public class SlackWorkflowService
                 UserName = userName,
                 ChannelId = channelId,
             },
+            Origin = origin ?? new SlackOriginRef { TriggerType = "slash_command" },
             JiraDraft = new WorkflowJiraDraft
             {
                 ProjectKey = jiraPreference?.ProjectKey ?? jiraService.DefaultProjectKey,
@@ -111,11 +179,11 @@ public class SlackWorkflowService
 
         _workflows[workflow.Id] = workflow;
         await SaveWorkflowAsync(workflow);
-        await AppendEventAsync(workflow, "workflow_created", "", userId, "Slack workflow created");
+        await AppendEventAsync(workflow, "workflow_created", "", userId, startedSummary ?? "Slack workflow created");
 
         var rootTs = await slackBotService.PostMessageAsync(
             channelId,
-            "Slack workflow started.",
+            rootMessageText,
             BuildRootBlocks(workflow),
             null,
             ct);
@@ -303,9 +371,16 @@ public class SlackWorkflowService
             return;
 
         var eventType = eventEl.TryGetProperty("type", out var typeProp) ? typeProp.GetString() ?? "" : "";
+        var eventId = payload.TryGetProperty("event_id", out var eventIdProp) ? eventIdProp.GetString() ?? "" : "";
+
+        if (eventType == "app_mention")
+        {
+            await HandleAppMentionAsync(payload, eventEl, eventId, ct);
+            return;
+        }
+
         if (eventType != "message")
             return;
-
         if (eventEl.TryGetProperty("subtype", out _))
             return;
         if (eventEl.TryGetProperty("bot_id", out _))
@@ -315,7 +390,6 @@ public class SlackWorkflowService
         var threadTs = eventEl.TryGetProperty("thread_ts", out var threadProp) ? threadProp.GetString() ?? "" : "";
         var userId = eventEl.TryGetProperty("user", out var userProp) ? userProp.GetString() ?? "" : "";
         var text = eventEl.TryGetProperty("text", out var textProp) ? textProp.GetString() ?? "" : "";
-        var eventId = payload.TryGetProperty("event_id", out var eventIdProp) ? eventIdProp.GetString() ?? "" : "";
 
         if (string.IsNullOrWhiteSpace(channelId) ||
             string.IsNullOrWhiteSpace(threadTs) ||
@@ -338,6 +412,51 @@ public class SlackWorkflowService
             return;
 
         _ = Task.Run(() => RunStageAsync(workflow.Id, workflow.PendingFeedbackStage, text, CancellationToken.None));
+    }
+
+    private async Task HandleAppMentionAsync(JsonElement payload, JsonElement eventEl, string eventId, CancellationToken ct)
+    {
+        var channelId = eventEl.TryGetProperty("channel", out var channelProp) ? channelProp.GetString() ?? "" : "";
+        var userId = eventEl.TryGetProperty("user", out var userProp) ? userProp.GetString() ?? "" : "";
+        var text = eventEl.TryGetProperty("text", out var textProp) ? textProp.GetString() ?? "" : "";
+        var messageTs = eventEl.TryGetProperty("ts", out var tsProp) ? tsProp.GetString() ?? "" : "";
+        var threadTs = eventEl.TryGetProperty("thread_ts", out var threadProp) ? threadProp.GetString() ?? "" : "";
+        var userName = payload.TryGetProperty("authorizations", out var authProp)
+            && authProp.ValueKind == JsonValueKind.Array
+            ? userId
+            : userId;
+
+        if (string.IsNullOrWhiteSpace(channelId) ||
+            string.IsNullOrWhiteSpace(userId) ||
+            string.IsNullOrWhiteSpace(text) ||
+            string.IsNullOrWhiteSpace(messageTs))
+            return;
+
+        var dedupeKey = string.IsNullOrWhiteSpace(eventId) ? $"{channelId}:{messageTs}" : eventId;
+        if (!_processedMentionStarts.TryAdd(dedupeKey, 0))
+            return;
+
+        var normalizedText = NormalizeMentionRequest(text);
+        if (string.IsNullOrWhiteSpace(normalizedText))
+            return;
+
+        var duplicateExists = _workflows.Values.Any(w =>
+            string.Equals(w.Origin.EventId, eventId, StringComparison.Ordinal) ||
+            (string.Equals(w.Origin.ChannelId, channelId, StringComparison.Ordinal) &&
+             string.Equals(w.Origin.MessageTs, messageTs, StringComparison.Ordinal)));
+
+        if (duplicateExists)
+            return;
+
+        _ = Task.Run(() => StartWorkflowFromMentionAsync(
+            userId,
+            userName,
+            channelId,
+            messageTs,
+            threadTs,
+            eventId,
+            normalizedText,
+            CancellationToken.None));
     }
 
     private async Task HandleApproveAsync(string workflowId, string stage, CancellationToken ct)
@@ -1149,7 +1268,21 @@ public class SlackWorkflowService
         /spec-status - Show your latest workflow status
         /spec-rerun [intake|spec|jira] - Rerun the current or selected stage
         /spec-help - Show this help message
+        
+        Slack mention flow:
+        Mention the bot in a channel message to capture that request and continue the workflow in DM.
         """;
+
+    private static string NormalizeMentionRequest(string text)
+    {
+        var withoutLeadingMentions = Regex.Replace(
+            text,
+            @"^\s*(<@[^>]+>\s*)+",
+            "",
+            RegexOptions.CultureInvariant);
+
+        return withoutLeadingMentions.Trim();
+    }
 
     private async Task WithWorkflowLockAsync(string workflowId, Func<WorkflowState, Task> action)
     {
@@ -1214,13 +1347,16 @@ public class SlackWorkflowService
 
         var header = $"*Slack Workflow*\nStatus: `{workflow.Status}`\nCurrent stage: `{workflow.CurrentStage}`";
         var requestPreview = TrimForSlack(workflow.RequestText, 240);
+        var sourceLine = string.IsNullOrWhiteSpace(workflow.Origin.ChannelId)
+            ? $"Source: `{workflow.Origin.TriggerType}`"
+            : $"Source: `{workflow.Origin.TriggerType}` from `<#{workflow.Origin.ChannelId}>`";
         var jiraLine = workflow.JiraResult is null
             ? $"Jira target: `{workflow.JiraDraft.ProjectKey}` / `{workflow.JiraDraft.IssueTypeName}`"
             : $"Jira: <{workflow.JiraResult.IssueUrl}|{workflow.JiraResult.IssueKey}>";
 
         var blocks = new List<object>
         {
-            SectionBlock($"{header}\n{jiraLine}\n\n*Request*\n{requestPreview}"),
+            SectionBlock($"{header}\n{sourceLine}\n{jiraLine}\n\n*Request*\n{requestPreview}"),
             SectionBlock(string.Join("\n", lines)),
         };
 

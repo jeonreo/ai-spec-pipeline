@@ -111,6 +111,7 @@ export default function WorkflowPanel({ onClose, initialWorkflowId }: Props) {
                 <div className="workflow-list-preview">{item.requestPreview}</div>
                 <div className="workflow-list-meta">
                   <span>{item.requestUserName || 'unknown'}</span>
+                  {item.origin?.channelId && <span>source #{item.origin.channelId}</span>}
                   {item.jiraIssueKey && <span>{item.jiraIssueKey}</span>}
                 </div>
               </button>
@@ -133,6 +134,7 @@ export default function WorkflowPanel({ onClose, initialWorkflowId }: Props) {
                     <span>Created: {formatDate(detail.workflow.createdAt)}</span>
                     <span>Updated: {formatDate(detail.workflow.updatedAt)}</span>
                     <span>Slack DM: {detail.workflow.slack.channelId || '-'}</span>
+                    <span>Origin: {detail.workflow.origin?.channelId ? `${detail.workflow.origin.triggerType} / #${detail.workflow.origin.channelId}` : detail.workflow.origin?.triggerType || 'slash_command'}</span>
                     <span>Jira Draft: {detail.workflow.jiraDraft.projectKey || '-'} / {detail.workflow.jiraDraft.issueTypeName || '-'}</span>
                     {detail.workflow.jiraResult && (
                       <a href={detail.workflow.jiraResult.issueUrl} target="_blank" rel="noreferrer">
@@ -140,6 +142,12 @@ export default function WorkflowPanel({ onClose, initialWorkflowId }: Props) {
                       </a>
                     )}
                   </div>
+                  {detail.workflow.origin?.messageTs && (
+                    <div className="workflow-summary-grid">
+                      <span>Origin Message Ts: {detail.workflow.origin.messageTs}</span>
+                      <span>Origin Thread Ts: {detail.workflow.origin.threadTs || '-'}</span>
+                    </div>
+                  )}
                   <pre className="workflow-request">{detail.workflow.requestText}</pre>
                   <div className="workflow-rerun-row">
                     <button

@@ -13,13 +13,15 @@ public class WorkflowController(SlackWorkflowService workflowService) : Controll
         var items = workflowService.List().Select(workflow => new
         {
             id = workflow.Id,
+            source = workflow.Source,
             status = workflow.Status,
             currentStage = workflow.CurrentStage,
             createdAt = workflow.CreatedAt,
             updatedAt = workflow.UpdatedAt,
             requestUserName = workflow.RequestUserName,
-            requestPreview = workflow.RequestText.Length > 160 ? workflow.RequestText[..160] + "…" : workflow.RequestText,
+            requestPreview = workflow.RequestText.Length > 160 ? workflow.RequestText[..160] + "..." : workflow.RequestText,
             jiraIssueKey = workflow.JiraResult?.IssueKey,
+            origin = workflow.Origin,
         });
 
         return Ok(new { items });

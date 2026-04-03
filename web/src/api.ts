@@ -193,6 +193,7 @@ export interface HistoryDetail {
 
 export interface WorkflowListItem {
   id: string
+  source: string
   status: string
   currentStage: string
   createdAt: string
@@ -200,6 +201,7 @@ export interface WorkflowListItem {
   requestUserName: string
   requestPreview: string
   jiraIssueKey?: string
+  origin: WorkflowOriginRef
 }
 
 export interface WorkflowStageState {
@@ -230,6 +232,14 @@ export interface WorkflowSlackRef {
   stageThreadTs: Record<string, string>
 }
 
+export interface WorkflowOriginRef {
+  triggerType: string
+  channelId: string
+  messageTs: string
+  threadTs: string
+  eventId: string
+}
+
 export interface WorkflowJiraDraft {
   projectKey: string
   issueTypeId: string
@@ -257,6 +267,7 @@ export interface WorkflowState {
   createdAt: string
   updatedAt: string
   slack: WorkflowSlackRef
+  origin: WorkflowOriginRef
   jiraDraft: WorkflowJiraDraft
   jiraResult?: WorkflowJiraResult
   stages: Record<string, WorkflowStageState>

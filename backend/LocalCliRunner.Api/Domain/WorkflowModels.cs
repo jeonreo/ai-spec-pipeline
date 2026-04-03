@@ -58,6 +58,15 @@ public class SlackConversationRef
     public Dictionary<string, string> StageThreadTs { get; set; } = new(StringComparer.Ordinal);
 }
 
+public class SlackOriginRef
+{
+    public string TriggerType { get; set; } = "";
+    public string ChannelId { get; set; } = "";
+    public string MessageTs { get; set; } = "";
+    public string ThreadTs { get; set; } = "";
+    public string EventId { get; set; } = "";
+}
+
 public class WorkflowEvent
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
@@ -119,6 +128,7 @@ public class WorkflowState
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public SlackConversationRef Slack { get; set; } = new();
+    public SlackOriginRef Origin { get; set; } = new();
     public WorkflowJiraDraft JiraDraft { get; set; } = new();
     public WorkflowJiraResult? JiraResult { get; set; }
     public Dictionary<string, WorkflowStageState> Stages { get; set; } = CreateDefaultStages();

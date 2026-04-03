@@ -9,13 +9,15 @@ AI Spec Pipeline turns an initial request into a staged delivery flow:
 The project now supports two entry points:
 
 - Web console for manual pipeline runs, history, settings, and debugging
-- Slack DM workflow for staged approval, review, and Jira creation
+- Slack workflow for staged approval, review, and Jira creation
 
 ## Current Slack Workflow
 
 The current Slack-native flow is:
 
-1. User runs `/spec <request>`
+1. User starts from either:
+   - `/spec <request>`
+   - a channel message that explicitly mentions the bot
 2. The bot opens or reuses a DM with that user
 3. The workflow runs through `intake -> spec -> jira`
 4. Each stage uses the same pattern:
@@ -27,6 +29,7 @@ The current Slack-native flow is:
 Important behavior:
 
 - `intake`, `spec`, and `jira` each have an automated reviewer
+- channel mentions are acknowledged in-channel, then continued in DM
 - `Request changes` puts the stage into waiting state
 - The next user reply in the same stage thread is treated as revision feedback
 - `Change Jira Settings` updates the current workflow and also saves the user's personal Jira default for future workflows
@@ -41,7 +44,7 @@ Important behavior:
 - `SlackBotService`
   - Slack API calls such as DM open, message post/update, modal open/update
 - `SlackSocketModeService`
-  - Socket Mode connection for slash commands, interactive actions, and DM message events
+  - Socket Mode connection for slash commands, app mentions, interactive actions, and DM message events
 - `SlackWorkflowService`
   - Workflow orchestration, stage transitions, reviewer flow, persistence, and Jira creation
 - `WorkflowUserPreferencesService`
@@ -160,6 +163,7 @@ Required minimum bot scopes:
 
 - `commands`
 - `chat:write`
+- `app_mentions:read`
 - `im:read`
 - `im:history`
 
@@ -169,8 +173,9 @@ Helpful additional scope if your workspace requires it:
 
 ### Bot events
 
-Required bot event:
+Required bot events:
 
+- `app_mention`
 - `message.im`
 
 ### Slash commands
@@ -229,7 +234,7 @@ Default local URLs:
 ```
 
 4. Confirm the bot opens or reuses a DM
-5. Confirm an `Intake Agent` thread appears
+5. Confirm an `Intake Agent` thread appears in DM
 6. Confirm the flow for each stage:
    - draft message
    - reviewer message
@@ -243,6 +248,13 @@ Default local URLs:
    - the issue is created
    - the issue link is posted back to Slack
    - `spec.md` is attached
+
+### Mention-triggered workflow test
+
+1. In a channel where the bot is present, post a request that mentions the bot
+2. Confirm the bot replies in-channel that it picked up the request
+3. Confirm the DM workflow starts for the requester
+4. Confirm the workflow detail in the web console shows the origin channel metadata
 
 ### Web console test
 
