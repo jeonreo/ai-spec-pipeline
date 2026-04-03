@@ -1,33 +1,32 @@
 ---
 name: intake
-description: "비정형 요구사항(슬랙 메시지, 구두 요청, 메일, 회의록 등)을 분석하여 문제 정의/배경/목표/범위/리스크/결정 필요 섹션이 포함된 구조화된 Markdown 문서로 변환. 입력에 없는 내용은 절대 생성하지 않으며, 불확실한 항목은 Q./A. 포맷으로 결정 필요 섹션에 명시. 기능 요청, 버그 리포트, 개선 사항 등 모든 유형의 입력을 처리."
+description: "Turn an unstructured request into a concise intake document with goals, scope, risks, assumptions, and explicit open questions."
 ---
 
-입력을 분석하여 아래 템플릿의 각 섹션을 채워라.
+Analyze the raw request and convert it into a structured intake document.
 
-- 입력에 없는 내용은 절대 추가하지 말 것
-- 언급이 없거나 불확실한 항목은 "확인 필요"로 표시
-- 각 섹션은 3-5줄 이내로 간결하게
+Rules:
 
-## 결정 필요 섹션 규칙
+- Use only information that is present in the request.
+- Do not invent product behavior, APIs, fields, user roles, or hidden constraints.
+- If something is unclear, capture it as an open question instead of guessing.
+- Keep the document concise and decision-oriented.
+- Separate confirmed facts from assumptions and unresolved items.
 
-이 섹션은 반드시 아래 Q./A. 포맷으로 작성한다.
+What good intake looks like:
 
-```
-Q. [결정이 필요한 사항을 질문 형태로 한 문장으로]
+- The problem is stated clearly in 1-3 short paragraphs.
+- Goals describe the outcome, not implementation details.
+- Scope makes it obvious what is included and excluded.
+- Risks call out ambiguity, dependencies, and operational concerns.
+- Open questions are concrete and answerable.
+
+Open question format:
+
+```text
+Q. <single concrete question>
 A.
 ```
 
-- `Q.` 로 시작하는 줄: 결정이 필요한 질문
-- `A.` 로 시작하는 줄: 답변 자리 (비워둠 — PM이 직접 채움)
-- 입력에서 불명확하거나 명시적으로 결정되지 않은 사항만 포함
-- 이미 입력에서 결정된 사항은 포함하지 말 것
-- 결정 필요 항목이 없으면 섹션을 생략
-
----
-
-## Learn Agent 추가 지침
-
-## 추가 지침
-- Q/A 항목에서 A.가 비어 있는 경우, 가정한 기본값과 근거를 괄호로 명시한다. 예: A. (미결 — 기본값: import 제외로 가정, 담당자 확인 필요)
-- 미결 항목은 별도 '미결 사항' 목록으로 분리하여 스펙 전달 시 명시적으로 표시한다.
+- Use this only for items that are truly unresolved.
+- If there are no meaningful open questions, omit that section entirely.

@@ -1,22 +1,25 @@
-## 문제 정의
-[핵심 문제를 1-3문장으로 요약]
+## Problem Statement
+[What is being requested and why it matters]
 
-## 배경
-[맥락, 현재 상태, 왜 지금 해결해야 하는지]
+## Background
+[Relevant context from the request only]
 
-## 목표
-[이 작업으로 달성하고자 하는 것, 성공 기준]
+## Goals
+- [Goal 1]
+- [Goal 2]
 
-## 범위
-[포함: ]
-[제외: ]
+## Scope
+- Included:
+  - [Included item]
+- Excluded:
+  - [Excluded item]
 
-## 리스크
-[예상 위험 요소, 영향도]
+## Assumptions
+- [Assumption that should stay visible downstream]
 
-## 결정 필요
-Q. [결정이 필요한 사항을 질문 형태로 작성]
-A.
+## Risks
+- [Risk or ambiguity]
 
-Q. [결정이 필요한 다른 사항]
+## Open Questions
+Q. [Concrete unresolved question]
 A.

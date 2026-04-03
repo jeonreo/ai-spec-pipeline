@@ -1,7 +1,9 @@
 node_modules/
 dist/
 workspaces/
-.env.local
+.env
+.env.*
+!.env.example
 
 # .NET
 backend/**/bin/
@@ -13,10 +15,9 @@ backend/**/obj/
 *.user
 backend/LocalCliRunner.Api/appsettings.Development.json
 backend/LocalCliRunner.Api/pipeline-settings.json
+backend/LocalCliRunner.Api/workflow-user-preferences.json
 .dotnet/
 .tmp-build/
-
-.env
 AI_Spec_Pipeline.pptx
 scripts/gen_ppt.py
 

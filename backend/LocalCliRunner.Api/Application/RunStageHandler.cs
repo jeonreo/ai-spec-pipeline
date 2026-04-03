@@ -5,43 +5,38 @@ using LocalCliRunner.Api.Workspace;
 namespace LocalCliRunner.Api.Application;
 
 public class RunStageHandler(
-    ICliRunner       cliRunner,
-    PromptBuilder    promptBuilder,
+    StageExecutionService stageExecutionService,
     WorkspaceManager workspaceManager,
-    JobRegistry      jobRegistry,
-    PiiTokenizer     piiTokenizer,
+    JobRegistry jobRegistry,
     GitCommitService gitCommitService,
     ILogger<RunStageHandler> logger)
 {
     private static readonly Dictionary<string, string> OutputFiles = new()
     {
-        ["intake"]   = "intake.md",
-        ["spec"]     = "spec.md",
-        ["jira"]     = "jira.json",
-        ["qa"]       = "qa.md",
-        ["design"]   = "design.json",
+        ["intake"] = "intake.md",
+        ["spec"] = "spec.md",
+        ["jira"] = "jira.json",
+        ["qa"] = "qa.md",
+        ["design"] = "design.json",
     };
-
 
     public RunStageResult Enqueue(RunStageCommand command)
     {
-        var jobId         = Job.NewId();
+        var jobId = Job.NewId();
         var workspacePath = workspaceManager.Create(jobId);
-        var outputFile    = OutputFiles.GetValueOrDefault(command.Profile, $"{command.Profile}.md");
+        var outputFile = OutputFiles.GetValueOrDefault(command.Profile, $"{command.Profile}.md");
 
         var job = new Job
         {
-            Id            = jobId,
-            Profile       = command.Profile,
+            Id = jobId,
+            Profile = command.Profile,
             WorkspacePath = workspacePath,
-            CreatedAt     = DateTime.UtcNow,
-            Status        = JobStatus.Queued,
-            OutputFile    = outputFile,
+            CreatedAt = DateTime.UtcNow,
+            Status = JobStatus.Queued,
+            OutputFile = outputFile,
         };
 
         jobRegistry.Register(job);
-
-        // Fire-and-forget: run in background
         _ = RunAsync(job, command);
 
         return new RunStageResult(jobId, JobStatus.Queued, workspacePath);
@@ -55,94 +50,37 @@ public class RunStageHandler(
         {
             job.Status = JobStatus.Running;
 
-            // PII 토큰화 (Claude에 전송 전)
-            var (tokenizedInput, piiMap) = piiTokenizer.Tokenize(command.InputText);
+            var result = await stageExecutionService.ExecuteAsync(
+                new StageExecutionRequest(
+                    command.Profile,
+                    command.InputText,
+                    null,
+                    null,
+                    job.WorkspacePath,
+                    job.Id));
 
-            // Write input (원본 저장)
-            await File.WriteAllTextAsync(layout.InputFile, command.InputText);
+            _ = gitCommitService.AppendAndCommitAsync(command.Profile, result.Output);
 
-            // Build prompt (토큰화된 입력 사용)
-            var prompt = await promptBuilder.BuildAsync(command.Profile, tokenizedInput);
-            await File.WriteAllTextAsync(layout.PromptFile, prompt);
-
-            // Run CLI
-            var result = await cliRunner.RunAsync(prompt, job.WorkspacePath, command.Model);
-
-            // PII 복원 (출력 후)
-            var restoredOutput = piiTokenizer.Detokenize(result.Stdout, piiMap);
-            if (command.Profile is "jira" or "patch" or "learn")
-            {
-                restoredOutput = StripCodeFence(restoredOutput);
-                restoredOutput = ExtractJsonContent(restoredOutput, expectArray: true);
-            }
-            else if (command.Profile is "design")
-            {
-                restoredOutput = StripCodeFence(restoredOutput);
-                restoredOutput = ExtractJsonContent(restoredOutput, expectArray: false);
-            }
-
-            // Write output (복원된 결과 저장)
-            var outPath = layout.OutputFile(job.OutputFile!);
-            await File.WriteAllTextAsync(outPath, restoredOutput);
-
-            // Git docs append & commit (md 프로파일만)
-            _ = gitCommitService.AppendAndCommitAsync(command.Profile, restoredOutput);
-
-            // Write log
-            await File.WriteAllTextAsync(layout.LogFile, result.Stderr);
-
-            // Write meta (no sensitive info)
             var meta = $$$"""
                 {
                   "createdAt": "{{{job.CreatedAt:O}}}",
                   "profile": "{{{command.Profile}}}",
-                  "exitCode": {{{result.ExitCode}}}
+                  "warning": {{{JsonValue(result.Warning)}}}
                 }
                 """;
             await File.WriteAllTextAsync(layout.MetaFile, meta);
 
-            // 출력은 파일에 저장됐으므로 메모리에 보관하지 않는다.
-            job.Status = result.ExitCode == 0 ? JobStatus.Done : JobStatus.Failed;
-
-            if (result.ExitCode != 0)
-                job.Error = $"CLI exited with code {result.ExitCode}. stderr: {result.Stderr[..Math.Min(500, result.Stderr.Length)]}";
+            job.Status = JobStatus.Done;
+            job.OutputFile = result.OutputFile;
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Job {JobId} failed", job.Id);
             job.Status = JobStatus.Failed;
-            job.Error  = ex.Message;
+            job.Error = ex.Message;
         }
     }
 
-    private static string StripCodeFence(string text)
-    {
-        var s = text.TrimStart();
-        if (s.StartsWith("```", StringComparison.Ordinal))
-        {
-            var firstNewline = s.IndexOf('\n');
-            if (firstNewline >= 0)
-                s = s[(firstNewline + 1)..];
-        }
-
-        var trimmed = s.TrimEnd();
-        if (trimmed.EndsWith("```", StringComparison.Ordinal))
-            s = trimmed[..trimmed.LastIndexOf("```", StringComparison.Ordinal)];
-
-        return s.Trim();
-    }
-
-    private static string ExtractJsonContent(string text, bool expectArray)
-    {
-        var open  = expectArray ? '[' : '{';
-        var close = expectArray ? ']' : '}';
-
-        var start = text.IndexOf(open);
-        if (start < 0) return text;
-
-        var end = text.LastIndexOf(close);
-        if (end < start) return text;
-
-        return text[start..(end + 1)];
-    }
+    private static string JsonValue(string? value) =>
+        value is null ? "null" : $"\"{value.Replace("\\", "\\\\").Replace("\"", "\\\"")}\"";
 }

@@ -4,6 +4,7 @@ import SourcePanel from './components/SourcePanel'
 import KanbanBoard from './components/KanbanBoard'
 import HistoryPanel from './components/HistoryPanel'
 import SettingsModal from './components/SettingsModal'
+import WorkflowPanel from './components/WorkflowPanel'
 
 export type Tab = 'intake' | 'spec' | 'jira' | 'qa' | 'design' | 'code-analysis' | 'patch' | 'learn'
 export type RunState = 'idle' | 'running' | 'done' | 'failed'
@@ -160,6 +161,8 @@ export default function App() {
   const [policy, setPolicy]     = useState<string | null>(null)
   const [policyOpen, setPolicyOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [workflowOpen, setWorkflowOpen] = useState(false)
+  const [workflowInitialId, setWorkflowInitialId] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [isVertex, setIsVertex]         = useState(false)
 
@@ -186,6 +189,15 @@ export default function App() {
     }
     waitForSettings()
     return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const workflowId = params.get('workflow')?.trim() ?? ''
+    if (workflowId) {
+      setWorkflowInitialId(workflowId)
+      setWorkflowOpen(true)
+    }
   }, [])
 
   // Auto-save session to localStorage (500ms debounce, 출력 100KB 초과 시 저장 생략)
@@ -456,6 +468,14 @@ export default function App() {
 
   const anyError = Object.values(errors).find(Boolean)
 
+  function handleWorkflowClose() {
+    setWorkflowOpen(false)
+    setWorkflowInitialId('')
+    const url = new URL(window.location.href)
+    url.searchParams.delete('workflow')
+    window.history.replaceState({}, '', url.toString())
+  }
+
   return (
     <div id="root">
       <header className="app-header">
@@ -465,6 +485,7 @@ export default function App() {
         </div>
         <div className="header-actions">
           {anyError && <span className="run-error">{anyError}</span>}
+          <button className="btn-header" onClick={() => setWorkflowOpen(true)}>Slack Workflows</button>
           <button className="btn-header" onClick={() => setHistoryOpen(true)}>히스토리</button>
           <button className="btn-header" onClick={() => setSettingsOpen(true)}>모델 설정</button>
           <button className="btn-header" onClick={handlePolicyOpen}>비즈니스 정책</button>
@@ -480,6 +501,13 @@ export default function App() {
         <HistoryPanel
           onRestore={handleRestore}
           onClose={() => setHistoryOpen(false)}
+        />
+      )}
+
+      {workflowOpen && (
+        <WorkflowPanel
+          initialWorkflowId={workflowInitialId}
+          onClose={handleWorkflowClose}
         />
       )}
 

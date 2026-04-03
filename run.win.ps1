@@ -220,6 +220,39 @@ if ([string]::IsNullOrWhiteSpace($slackToken)) {
     $maskedSlack = $slackToken.Substring(0, [Math]::Min(8, $slackToken.Length)) + "****"
     Write-Host "[ OK ] $("Slack".PadRight(8)): Token OK ($maskedSlack)" -ForegroundColor Green
 }
+
+# --- Slack app token / signing secret / public URL check ---
+$slackAppToken = Get-EnvValue $envFilePath "Slack__AppToken"
+if ([string]::IsNullOrWhiteSpace($slackAppToken)) { $slackAppToken = $env:Slack__AppToken }
+if (-not [string]::IsNullOrWhiteSpace($slackAppToken)) {
+    $env:Slack__AppToken = $slackAppToken
+    Write-Host "[ OK ] SlackApp: Socket Mode app token loaded" -ForegroundColor Green
+} else {
+    Write-Host "[WARN] Slack App Token is not configured." -ForegroundColor Yellow
+    Write-Host "       Socket Mode will stay disabled." -ForegroundColor Yellow
+    Write-Host "       Add Slack__AppToken to .env if you want Slack without a public URL." -ForegroundColor Yellow
+}
+
+$slackSigningSecret = Get-EnvValue $envFilePath "Slack__SigningSecret"
+if ([string]::IsNullOrWhiteSpace($slackSigningSecret)) { $slackSigningSecret = $env:Slack__SigningSecret }
+if (-not [string]::IsNullOrWhiteSpace($slackSigningSecret)) {
+    $env:Slack__SigningSecret = $slackSigningSecret
+    Write-Host "[ OK ] SlackSig : Signing secret loaded from .env/env var" -ForegroundColor Green
+} else {
+    Write-Host "[WARN] Slack Signing Secret is not configured." -ForegroundColor Yellow
+    Write-Host "       HTTP webhook verification will fail." -ForegroundColor Yellow
+    Write-Host "       This is optional if you only use Socket Mode." -ForegroundColor Yellow
+}
+
+$appPublicBaseUrl = Get-EnvValue $envFilePath "App__PublicBaseUrl"
+if ([string]::IsNullOrWhiteSpace($appPublicBaseUrl)) { $appPublicBaseUrl = $env:App__PublicBaseUrl }
+if (-not [string]::IsNullOrWhiteSpace($appPublicBaseUrl)) {
+    $env:App__PublicBaseUrl = $appPublicBaseUrl
+    Write-Host "[ OK ] App URL  : $appPublicBaseUrl" -ForegroundColor Green
+} else {
+    Write-Host "[WARN] App Public Base URL is not configured." -ForegroundColor Yellow
+    Write-Host "       Slack messages can still work, but 'Open in Web Console' links will be hidden." -ForegroundColor Yellow
+}
 Write-Host ""
 
 # npm install

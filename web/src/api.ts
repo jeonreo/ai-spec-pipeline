@@ -191,6 +191,83 @@ export interface HistoryDetail {
   outputs: Record<string, string>
 }
 
+export interface WorkflowListItem {
+  id: string
+  status: string
+  currentStage: string
+  createdAt: string
+  updatedAt: string
+  requestUserName: string
+  requestPreview: string
+  jiraIssueKey?: string
+}
+
+export interface WorkflowStageState {
+  name: string
+  status: string
+  threadTs: string
+  workerMessageTs: string
+  reviewerMessageTs: string
+  approvalMessageTs: string
+  lastInput: string
+  outputPreview: string
+  outputFile: string
+  reviewerOutputFile: string
+  reviewerPreview: string
+  reviewerDecision: string
+  reviewerSummary: string
+  lastFeedback: string
+  lastError: string
+  startedAt?: string
+  completedAt?: string
+}
+
+export interface WorkflowSlackRef {
+  userId: string
+  userName: string
+  channelId: string
+  rootMessageTs: string
+  stageThreadTs: Record<string, string>
+}
+
+export interface WorkflowJiraDraft {
+  projectKey: string
+  issueTypeId: string
+  issueTypeName: string
+}
+
+export interface WorkflowJiraResult {
+  issueKey: string
+  issueUrl: string
+  createdAt: string
+}
+
+export interface WorkflowState {
+  id: string
+  source: string
+  workspaceId: string
+  workspacePath: string
+  requestText: string
+  requestUserId: string
+  requestUserName: string
+  status: string
+  currentStage: string
+  pendingFeedbackStage: string
+  lastError: string
+  createdAt: string
+  updatedAt: string
+  slack: WorkflowSlackRef
+  jiraDraft: WorkflowJiraDraft
+  jiraResult?: WorkflowJiraResult
+  stages: Record<string, WorkflowStageState>
+  outputFiles: Record<string, string>
+}
+
+export interface WorkflowDetail {
+  workflow: WorkflowState
+  outputs: Record<string, string>
+}
+
 export async function fetchHistory(page: number, pageSize: number, date?: string): Promise<HistoryPage> {
   const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
   if (date) params.set('date', date)
@@ -208,6 +285,28 @@ export async function fetchHistoryDetail(id: string): Promise<HistoryDetail> {
 export async function deleteHistoryItem(id: string): Promise<void> {
   const res = await fetch(`/api/history/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error(`?쒕쾭 ?ㅻ쪟: ${res.status}`)
+}
+
+export async function fetchWorkflows(): Promise<{ items: WorkflowListItem[] }> {
+  const res = await fetch('/api/workflows')
+  if (!res.ok) throw new Error(`?쒕쾭 ?ㅻ쪟: ${res.status}`)
+  return res.json()
+}
+
+export async function fetchWorkflowDetail(id: string): Promise<WorkflowDetail> {
+  const res = await fetch(`/api/workflows/${id}`)
+  if (!res.ok) throw new Error(`?쒕쾭 ?ㅻ쪟: ${res.status}`)
+  return res.json()
+}
+
+export async function rerunWorkflowStage(id: string, stage?: string): Promise<void> {
+  const res = await fetch(`/api/workflows/${id}/rerun`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stage }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error ?? `?쒕쾭 ?ㅻ쪟: ${res.status}`)
 }
 
 export async function fetchPolicy(): Promise<string> {

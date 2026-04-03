@@ -2,6 +2,8 @@ using LocalCliRunner.Api.Application;
 using LocalCliRunner.Api.Infrastructure;
 using LocalCliRunner.Api.Workspace;
 
+DotEnvLoader.LoadFromCurrentDirectory();
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
@@ -12,7 +14,11 @@ builder.Services.AddSingleton<PiiTokenizer>();
 builder.Services.AddSingleton<JiraService>();
 builder.Services.AddSingleton<GitCommitService>();
 builder.Services.AddSingleton<SettingsService>();
-builder.Services.AddSingleton<SlackService>();
+builder.Services.AddSingleton<SlackImportService>();
+builder.Services.AddSingleton<SlackBotService>();
+builder.Services.AddSingleton<SlackWorkflowService>();
+builder.Services.AddSingleton<WorkflowUserPreferencesService>();
+builder.Services.AddHostedService<SlackSocketModeService>();
 
 builder.Services.AddHttpClient(); // IHttpClientFactory for SlackService + GitHubService
 builder.Services.AddHttpClient("vertex", c => c.Timeout = TimeSpan.FromSeconds(600)); // Vertex AI — long-running LLM calls
@@ -36,7 +42,8 @@ else
 builder.Services.AddScoped<GitHubService>();
 builder.Services.AddScoped<RepoSearchService>();
 builder.Services.AddScoped<PromptBuilder>();
-builder.Services.AddScoped<WorkspaceManager>();
+builder.Services.AddSingleton<WorkspaceManager>();
+builder.Services.AddScoped<StageExecutionService>();
 builder.Services.AddScoped<RunStageHandler>();
 
 // CORS: React dev server 허용

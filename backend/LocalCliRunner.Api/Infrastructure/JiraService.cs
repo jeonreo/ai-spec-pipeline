@@ -7,22 +7,22 @@ namespace LocalCliRunner.Api.Infrastructure;
 
 public class JiraConfig
 {
-    public string BaseUrl              { get; set; } = "";
-    public string Email                { get; set; } = "";
-    public string ApiToken             { get; set; } = "";
-    public string DefaultProjectKey    { get; set; } = "";
+    public string BaseUrl { get; set; } = "";
+    public string Email { get; set; } = "";
+    public string ApiToken { get; set; } = "";
+    public string DefaultProjectKey { get; set; } = "";
     public string DefaultIssueTypeName { get; set; } = "";
 }
 
 public class JiraProject
 {
-    public string Key  { get; set; } = "";
+    public string Key { get; set; } = "";
     public string Name { get; set; } = "";
 }
 
 public class JiraIssueType
 {
-    public string Id   { get; set; } = "";
+    public string Id { get; set; } = "";
     public string Name { get; set; } = "";
 }
 
@@ -31,23 +31,22 @@ public record CreateIssueRequest(
     string Summary,
     Dictionary<string, string> Description,
     List<string> AcceptanceCriteria,
-    string? IssueTypeId   = null,
+    string? IssueTypeId = null,
     string? IssueTypeName = null,
-    string? SpecContent   = null);
+    string? SpecContent = null);
 
 public class JiraService
 {
-    private readonly HttpClient  _http;
-    private readonly JiraConfig  _config;
+    private readonly HttpClient _http;
+    private readonly JiraConfig _config;
     private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     public JiraService(IConfiguration configuration)
     {
         _config = configuration.GetSection("Jira").Get<JiraConfig>() ?? new();
 
-        // 환경변수로 ApiToken 오버라이드 (JIRA__APITOKEN 또는 JIRA_API_TOKEN)
         var token = Environment.GetEnvironmentVariable("JIRA__APITOKEN")
-                 ?? Environment.GetEnvironmentVariable("JIRA_API_TOKEN");
+            ?? Environment.GetEnvironmentVariable("JIRA_API_TOKEN");
         if (!string.IsNullOrEmpty(token))
             _config.ApiToken = token;
 
@@ -63,7 +62,7 @@ public class JiraService
 
     public string IssueUrl(string key) => $"{_config.BaseUrl.TrimEnd('/')}/browse/{key}";
 
-    public string DefaultProjectKey    => _config.DefaultProjectKey;
+    public string DefaultProjectKey => _config.DefaultProjectKey;
     public string DefaultIssueTypeName => _config.DefaultIssueTypeName;
 
     public bool IsConfigured =>
@@ -82,7 +81,7 @@ public class JiraService
             .EnumerateArray()
             .Select(p => new JiraProject
             {
-                Key  = p.GetProperty("key").GetString()  ?? "",
+                Key = p.GetProperty("key").GetString() ?? "",
                 Name = p.GetProperty("name").GetString() ?? "",
             })
             .ToList();
@@ -99,7 +98,7 @@ public class JiraService
             .EnumerateArray()
             .Select(t => new JiraIssueType
             {
-                Id   = t.GetProperty("id").GetString()   ?? "",
+                Id = t.GetProperty("id").GetString() ?? "",
                 Name = t.GetProperty("name").GetString() ?? "",
             })
             .ToList();
@@ -107,7 +106,6 @@ public class JiraService
 
     public async Task<string> CreateIssueAsync(CreateIssueRequest req)
     {
-        // IssueTypeId 없으면 이름으로 조회해 ID 해석
         var typeId = req.IssueTypeId;
         if (string.IsNullOrEmpty(typeId) && !string.IsNullOrEmpty(req.IssueTypeName))
         {
@@ -115,7 +113,7 @@ public class JiraService
             typeId = types.FirstOrDefault(t =>
                 t.Name.Equals(req.IssueTypeName, StringComparison.OrdinalIgnoreCase))?.Id
                 ?? types.FirstOrDefault()?.Id
-                ?? throw new InvalidOperationException($"이슈 유형 '{req.IssueTypeName}'을 찾을 수 없습니다.");
+                ?? throw new InvalidOperationException($"Issue type '{req.IssueTypeName}' could not be found.");
         }
 
         var adf = BuildAdfDescription(req.Description, req.AcceptanceCriteria);
@@ -124,16 +122,16 @@ public class JiraService
         {
             fields = new
             {
-                project     = new { key = req.ProjectKey },
-                issuetype   = new { id  = typeId },
-                summary     = req.Summary,
+                project = new { key = req.ProjectKey },
+                issuetype = new { id = typeId },
+                summary = req.Summary,
                 description = adf,
             }
         };
 
-        var json    = JsonSerializer.Serialize(body, JsonOpts);
+        var json = JsonSerializer.Serialize(body, JsonOpts);
         var content = new StringContent(json, Encoding.UTF8, "application/json");
-        var res     = await _http.PostAsync($"{_config.BaseUrl.TrimEnd('/')}/rest/api/3/issue", content);
+        var res = await _http.PostAsync($"{_config.BaseUrl.TrimEnd('/')}/rest/api/3/issue", content);
         res.EnsureSuccessStatusCode();
 
         using var doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync());
@@ -156,14 +154,14 @@ public class JiraService
                 icon = new
                 {
                     url16x16 = "https://github.com/favicon.ico",
-                    title    = "GitHub",
+                    title = "GitHub",
                 },
             },
         }, JsonOpts);
 
-        var content  = new StringContent(body, Encoding.UTF8, "application/json");
+        var content = new StringContent(body, Encoding.UTF8, "application/json");
         var endpoint = $"{_config.BaseUrl.TrimEnd('/')}/rest/api/3/issue/{issueKey}/remotelink";
-        var res      = await _http.PostAsync(endpoint, content);
+        var res = await _http.PostAsync(endpoint, content);
         res.EnsureSuccessStatusCode();
     }
 
@@ -171,7 +169,7 @@ public class JiraService
     {
         var url = $"{_config.BaseUrl.TrimEnd('/')}/rest/api/3/issue/{issueKey}/attachments";
 
-        using var form  = new MultipartFormDataContent();
+        using var form = new MultipartFormDataContent();
         var fileContent = new ByteArrayContent(bytes);
         fileContent.Headers.ContentType = new MediaTypeHeaderValue(mimeType);
         form.Add(fileContent, "file", filename);
@@ -190,20 +188,44 @@ public class JiraService
         await AttachBinaryAsync(issueKey, filename, bytes, "text/markdown");
     }
 
-    /// <summary>jira.json description 오브젝트 + AC → Atlassian Document Format(ADF)</summary>
     private static object BuildAdfDescription(Dictionary<string, string> desc, List<string> ac)
     {
         var nodes = new List<object>();
-
-        foreach (var (label, text) in desc)
+        var preferredOrder = new[]
         {
-            if (string.IsNullOrWhiteSpace(text)) continue;
+            "Background",
+            "Goal",
+            "Scope",
+            "Out Of Scope",
+            "User Impact",
+            "Risks / Dependencies",
+            "Open Questions",
+        };
+
+        var orderedSections = preferredOrder
+            .Where(label => desc.ContainsKey(label))
+            .Select(label => new KeyValuePair<string, string>(label, desc[label]))
+            .Concat(desc.Where(pair => !preferredOrder.Contains(pair.Key, StringComparer.Ordinal)));
+
+        foreach (var (label, text) in orderedSections)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                continue;
+
             nodes.Add(new
             {
-                type    = "paragraph",
+                type = "paragraph",
                 content = new object[]
                 {
-                    new { type = "text", text = $"{label}: ", marks = new[] { new { type = "strong" } } },
+                    new { type = "text", text = label, marks = new[] { new { type = "strong" } } },
+                },
+            });
+
+            nodes.Add(new
+            {
+                type = "paragraph",
+                content = new object[]
+                {
                     new { type = "text", text },
                 },
             });
@@ -213,21 +235,26 @@ public class JiraService
         {
             nodes.Add(new
             {
-                type    = "paragraph",
-                content = new[] { new { type = "text", text = "완료 조건 (Acceptance Criteria)", marks = new[] { new { type = "strong" } } } },
+                type = "paragraph",
+                content = new[]
+                {
+                    new { type = "text", text = "Acceptance Criteria", marks = new[] { new { type = "strong" } } }
+                },
             });
+
             nodes.Add(new
             {
-                type    = "bulletList",
+                type = "bulletList",
                 content = ac
+                    .Where(item => !string.IsNullOrWhiteSpace(item))
                     .Select(item => (object)new
                     {
-                        type    = "listItem",
+                        type = "listItem",
                         content = new object[]
                         {
                             new
                             {
-                                type    = "paragraph",
+                                type = "paragraph",
                                 content = new[] { new { type = "text", text = item } },
                             },
                         },

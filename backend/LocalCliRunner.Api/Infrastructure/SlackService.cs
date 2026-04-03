@@ -13,7 +13,7 @@ public record SlackExtractResult(string Text, IReadOnlyList<SlackFile> Files);
 /// files 는 url_private_download 로 다운로드.
 /// 인증: Bot Token (xoxb-...) — SLACK__BOTTOKEN 환경변수 또는 appsettings.json Slack:BotToken
 /// </summary>
-public class SlackService(IConfiguration config, IHttpClientFactory httpFactory)
+public class SlackImportService(IConfiguration config, IHttpClientFactory httpFactory)
 {
     private string BotToken =>
         Environment.GetEnvironmentVariable("Slack__BotToken") ??

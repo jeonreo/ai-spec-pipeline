@@ -1,13 +1,13 @@
 {
   "summary": "",
   "description": {
-    "배경": "",
-    "문제": "",
-    "포함 범위": "",
-    "제외 범위": "",
-    "의존성": "",
-    "롤아웃": "",
-    "모니터링": ""
+    "Background": "",
+    "Goal": "",
+    "Scope": "",
+    "Out Of Scope": "",
+    "User Impact": "",
+    "Risks / Dependencies": "",
+    "Open Questions": ""
   },
   "acceptance_criteria": [
     "",

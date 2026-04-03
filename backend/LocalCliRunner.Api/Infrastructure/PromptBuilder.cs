@@ -8,29 +8,33 @@ public class PromptBuilder(IConfiguration config)
     private static readonly Dictionary<string, string> TaskHeaders = new()
     {
         ["intake"] = "Output only the intake document.",
+        ["intake-review"] = "Output only valid JSON without markdown fences or commentary.",
         ["spec"] = "Output only the decision spec document.",
+        ["spec-review"] = "Output only valid JSON without markdown fences or commentary.",
         ["jira"] = "Output only valid JSON without markdown fences or commentary.",
+        ["jira-review"] = "Output only valid JSON without markdown fences or commentary.",
         ["qa"] = "Output only the QA document.",
         ["design"] = "Output only a valid Design Package v1 JSON object without markdown fences, HTML, or commentary.",
         ["learn"] = "Output only valid JSON without markdown fences or commentary.",
     };
 
-    private static readonly HashSet<string> PolicyProfiles = ["spec", "jira"];
-    // BE 아키텍처 문서를 주입할 프로파일
-    private static readonly HashSet<string> BeArchProfiles = ["spec", "code-analysis-be", "patch"];
-    // FE 아키텍처 문서를 주입할 프로파일
-    private static readonly HashSet<string> FeArchProfiles = ["spec", "code-analysis-fe", "patch"];
+    private static readonly HashSet<string> PolicyProfiles = ["spec", "spec-review", "jira", "jira-review"];
+    private static readonly HashSet<string> BeArchProfiles = ["spec", "spec-review", "code-analysis-be", "patch"];
+    private static readonly HashSet<string> FeArchProfiles = ["spec", "spec-review", "code-analysis-fe", "patch"];
 
     private static readonly Dictionary<string, string> AgentProfiles = new()
     {
-        ["intake"]           = "pm",
-        ["spec"]             = "pm",
-        ["jira"]             = "pm",
-        ["qa"]               = "qa-eng",
-        ["design"]           = "pd",
+        ["intake"] = "pm",
+        ["intake-review"] = "pm",
+        ["spec"] = "pm",
+        ["spec-review"] = "pm",
+        ["jira"] = "pm",
+        ["jira-review"] = "pm",
+        ["qa"] = "qa-eng",
+        ["design"] = "pd",
         ["code-analysis-be"] = "be-dev",
         ["code-analysis-fe"] = "fe-dev",
-        ["patch"]            = "fe-dev",
+        ["patch"] = "fe-dev",
     };
 
     public async Task<string> BuildAsync(string profile, string inputText)
@@ -50,7 +54,7 @@ public class PromptBuilder(IConfiguration config)
         if (profile == "policy-update")
         {
             var policyMd = await ReadPromptAsync("policy.md");
-            return $"{header}\n\n---\n\n{baseMd}{agentSection}\n\n---\n\n{skillMd}\n\n---\n\n## 현재 정책\n\n{policyMd}\n\n---\n\n## 새 결정사항\n\n{inputText}";
+            return $"{header}\n\n---\n\n{baseMd}{agentSection}\n\n---\n\n{skillMd}\n\n---\n\n## Current Policy\n\n{policyMd}\n\n---\n\n## Requested Changes\n\n{inputText}";
         }
 
         var templateMd = await TryReadSkillAsync(profile, "template.md");
@@ -65,15 +69,19 @@ public class PromptBuilder(IConfiguration config)
             if (BeArchProfiles.Contains(profile))
             {
                 var beArch = await TryReadContextAsync("be-architecture.md");
-                if (beArch is not null) parts.Add(beArch);
+                if (beArch is not null)
+                    parts.Add(beArch);
             }
+
             if (FeArchProfiles.Contains(profile))
             {
                 var feArch = await TryReadContextAsync("fe-architecture.md");
-                if (feArch is not null) parts.Add(feArch);
+                if (feArch is not null)
+                    parts.Add(feArch);
             }
+
             if (parts.Count > 0)
-                architectureSection = $"\n\n---\n\n## 코드베이스 아키텍처\n\n{string.Join("\n\n", parts)}";
+                architectureSection = $"\n\n---\n\n## Codebase Architecture\n\n{string.Join("\n\n", parts)}";
         }
 
         if (PolicyProfiles.Contains(profile))
